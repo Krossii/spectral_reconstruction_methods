@@ -1,0 +1,23 @@
+{
+    "Method": "Gaussian",
+    "optimizer": false,
+    "variance": 0.3,
+    "lengthscale": 0.4,
+    "omega_min": 0,
+    "omega_max": 5,
+    "omega_points": 500,
+    "Nt": 16,
+    "extractedQuantity": "RhoOverOmega",
+    "FiniteT_kernel": true,
+    "multiFit": false,
+    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B2_z.txt",
+    "xCol": 0,
+    "meanCol": 1,
+    "errorCol": 2,
+    "correlatorCols": "3:",
+    "errormethod": "jackknife",
+    "saveParams": true,
+    "verbose": true,
+    "outputFile": "RhoOverOmega_data_wilson_emconduc_B2_z_w10_500_seed42_rec.txt",
+    "outputDir": "./outputs/"
+}
