@@ -10,12 +10,12 @@
         500
     ],
     "learning_rate": [
-        0.001
+        1e-06
     ],
     "errorWeighting": true,
     "batch_size": 128,
-    "trainingFile": "spf_datasets/train_dat_16_500_RhoOverOmega.dat",
-    "validationFile": "spf_datasets/val_dat_16_500_RhoOverOmega.dat",
+    "trainingFile": "spf_datasets/train_dat_16_500_RhoOverOmega_0.1.dat",
+    "validationFile": "spf_datasets/val_dat_16_500_RhoOverOmega_0.1.dat",
     "omega_min": 0,
     "omega_max": 5,
     "omega_points": 500,

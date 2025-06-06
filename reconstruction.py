@@ -86,9 +86,9 @@ class ParameterHandler:
         if self.params["Method"] == "UnsupervisedNN":
             black_list_vals = set((
                 "Method", "batch_size", "create_data","data_noise", "trainingFile", 
-                "validationFile", "optimizer", "variance",
+                "validationFile", "optimizer", "variance", "model_file",
                 "lengthscale", "alpha_min", "alpha_max",
-                "alpha_points", "default_model"
+                "alpha_points", "default_model","eval_model"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = "SpectralNN"
@@ -106,8 +106,8 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "Gaussian":
             black_list_vals = set((
-                "lambda_s", "lambda_l2", "epochs",
-                "learning_rate", "errorWeighting", "width", 
+                "lambda_s", "lambda_l2", "epochs","eval_model",
+                "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "alpha_min", "alpha_max",
                 "alpha_points", "default_model"
@@ -117,8 +117,8 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "MEM":
             black_list_vals = set((
-                "lambda_s", "lambda_l2", "epochs",
-                "learning_rate", "errorWeighting", "width", 
+                "lambda_s", "lambda_l2", "epochs","eval_model",
+                "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "optimizer", "variance", "lengthscale"
                 ))
@@ -190,6 +190,8 @@ paramsDefaultDict = {
     "data_noise": 10e-5,
     "trainingFile": "",
     "validationFile": "",
+    "eval_model": False,
+    "model_file": "",
     #Gaussian specific
     "optimizer": False,
     "variance": 0.3,

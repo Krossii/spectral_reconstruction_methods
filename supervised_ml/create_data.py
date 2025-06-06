@@ -202,7 +202,7 @@ class correlators:
                     noise[i] = 1
                     print("Set noise for this value of the correlator to 1")
                 else:
-                    noise[i] = np.random.normal(np.zeros(len(corr[i])), self.parameterHandler.get_params()["data_noise"]/corr[i])
+                    noise[i] = np.random.normal(0, self.parameterHandler.get_params()["data_noise"]/corr[i])
         return noise
 
 class create_datset:

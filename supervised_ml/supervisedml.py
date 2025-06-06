@@ -197,7 +197,7 @@ class networkTrainer:
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z)
             train_losses.append(total_loss_value)
             train_losses_ind.append(individual_losses)
-            if verbose and step % 50 == 0:
+            if verbose and step % 200 == 0:
                 print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}')
             if step >= len(dat):
                 break
@@ -371,10 +371,11 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        model.save('supervisedNN_Nt{}_w5.keras'.format(Nt))
+        modelname = 'supervisedNN_{}.keras'.format(train_file[10:-4])
+        model.save(modelname)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
         val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
-        return np.squeeze(spectralFunction), np.average(val_loss, axis=1)
+        return np.squeeze(spectralFunction), np.average(val_loss, axis=1), modelname
     
 class ParameterHandler:
     def __init__(self, paramsDefaultDict: dict):
@@ -488,7 +489,7 @@ class FitRunner:
         print("=" * 40)
         print(messageString)
         print("=" * 40)
-        sf, loss_history = self.fitter.fitCorrelator(
+        sf, loss_history, modelname = self.fitter.fitCorrelator(
             self.x,
             self.error,
             fittedQuantity,
@@ -500,24 +501,26 @@ class FitRunner:
             extractedQuantity=self.extractedQuantity,
             verbose=self.verbose
         )
-        print(np.shape(loss_history))
         if self.verbose:
             print("-" * 40)
             print(f"Training time: {time.time() - start_time:.2f} seconds")
         results.append(sf)
         loss_histories.append(loss_history)
+        return modelname
 
-    def pred_res(self, fittedQuantity, messageString, results: List[np.ndarray], loss_histories: List[np.ndarray]) -> None:
+    def pred_res(
+            self, fittedQuantity, messageString, results: List[np.ndarray], loss_histories: List[np.ndarray], model_file: str) -> None:
         print("=" * 40)
         print(messageString)
         print("=" * 40)
-        model = load_model('supervisedNN_Nt{}_w5.keras'.format(len(fittedQuantity)), custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
+        model = load_model(model_file, custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
         correlator = tf.reshape(fittedQuantity, (1,len(fittedQuantity)))
         spectralFunctions = model(correlator)
-        #maybe put a loss function computation in here
+        total_loss_value, individual_losses = networkTrainer.test_step(0, rho=spectralFunctions, corr=correlator, err=self.error)
         if self.verbose:
             print("-" * 40)
         results.append(np.squeeze(spectralFunctions))
+        loss_histories.append(np.concatenate(np.squeeze(total_loss_value), np.squeeze(individual_losses)))
     
     def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
         results = []
@@ -527,9 +530,12 @@ class FitRunner:
         else:
             self.correlators = self.correlators.T
         n_correlators = self.correlators.shape[0]
-        self.run_single_fit(self.mean, "Fitting mean correlator", results, loss_histories)
-        for i, corr in enumerate(self.correlators):
-            self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, loss_histories)
+        if self.parameterHandler.get_params()["eval_model"]:
+            self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, loss_histories, self.parameterHandler.get_params()["model_file"])
+        else:
+            model_name = self.run_single_fit(self.mean, "Fitting mean correlator", results, loss_histories)
+            for i, corr in enumerate(self.correlators):
+                self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, loss_histories, model_name)
         return np.array(results), np.array(loss_histories)
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
@@ -636,6 +642,8 @@ paramsDefaultDict = {
     "batch_size": 128,
     "trainingFile": "",
     "validationFile": "",
+    "eval_model": False,
+    "model_file": "",
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,
