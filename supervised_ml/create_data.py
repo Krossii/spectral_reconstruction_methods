@@ -233,12 +233,14 @@ class create_datset:
             for j in range(len(M)):
                 for k in range(len(G)):
                     rho = self.breit_wigner(self.w, A[i], M[j], G[k])
-                    corr = self.get_corr(self.w, self.tau, rho)
+                    normalizing_fac = np.trapezoid(rho, self.w)
+                    normed_rho = rho/normalizing_fac
+                    corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
-                    if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                    if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                         print("Nan value in single peaked BW")
                     one_dat.append({
-                        'fct': rho,
+                        'fct': normed_rho,
                         'corr': corr,
                         'noise': noise,
                     })
@@ -258,12 +260,14 @@ class create_datset:
             for j in range(5**2):
                 for k in range(5**2):
                     rho = self.mbreit_wigner(self.w, A[i][:], M[j][:], G[k][:])
-                    corr = self.get_corr(self.w, self.tau, rho)
+                    normalizing_fac = np.trapezoid(rho, self.w)
+                    normed_rho = rho/normalizing_fac
+                    corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
-                    if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                    if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                         print("Nan value in double peaked BW")
                     mult_dat.append({
-                        'fct': rho,
+                        'fct': normed_rho,
                         'corr': corr,
                         'noise': noise,
                     })
@@ -279,12 +283,14 @@ class create_datset:
         for i in range(len(mu)):
             for j in range(len(sigma)):                
                 rho = self.non_zero(self.w, mu[i], sigma[j])
-                corr = self.get_corr(self.w, self.tau, rho)
+                normalizing_fac = np.trapezoid(rho, self.w)
+                normed_rho = rho/normalizing_fac
+                corr = self.get_corr(self.w, self.tau, normed_rho)
                 noise = self.noise(corr)
-                if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                     print("Nan value in gaussian non zero")
                 dat.append({
-                    'fct': rho,
+                    'fct': normed_rho,
                     'corr': corr,
                     'noise': noise,
                 })
@@ -300,12 +306,14 @@ class create_datset:
         for i in range(len(t)):
             for j in range(len(h)):
                 rho = self.step(self.w, t[i], h[j])
-                corr = self.get_corr(self.w, self.tau, rho)
+                normalizing_fac = np.trapezoid(rho, self.w)
+                normed_rho = rho/normalizing_fac
+                corr = self.get_corr(self.w, self.tau, normed_rho)
                 noise = self.noise(corr)
-                if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                     print("Nan value in step function")
                 dat.append({
-                    'fct': rho,
+                    'fct': normed_rho,
                     'corr': corr,
                     'noise': noise,
                 })
@@ -321,12 +329,14 @@ class create_datset:
         for i in range(len(mu)):
             for j in range(len(sigma)):
                 rho = self.peak(self.w, mu[i], sigma[j])
-                corr = self.get_corr(self.w, self.tau, rho)
+                normalizing_fac = np.trapezoid(rho, self.w)
+                normed_rho = rho/normalizing_fac
+                corr = self.get_corr(self.w, self.tau, normed_rho)
                 noise = self.noise(corr)
-                if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                     print("Nan value in peak function")                
                 dat.append({
-                    'fct': rho,
+                    'fct': normed_rho,
                     'corr': corr,
                     'noise': noise,
                 })
@@ -338,13 +348,13 @@ class create_datset:
             print("Creating the datasets.")
         bw, mbw = self.breit_wigners()
         nonz = self.non_zeros()
-        steps = self.steps()
+        #steps = self.steps()
         peaks = self.peaks()
 
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Splitting into test and validation sets.")
-        full_set = bw + mbw + nonz + steps + peaks
+        full_set = bw + mbw + nonz + peaks #+ steps
         train_dat = []
         val_dat = []
         integers_split = np.random.randint(

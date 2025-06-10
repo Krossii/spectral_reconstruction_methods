@@ -61,23 +61,46 @@ class SupervisedNN(tf.keras.Model):
     def __init__(self, num_output_nodes: int, **kwargs):
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
-        self.hidden_layer1 = tf.keras.layers.Dense(128, activation='relu')
-        self.dropout = tf.keras.layers.Dropout(0.3)
-        self.hidden_layer2 = tf.keras.layers.Dense(256, activation='relu')
-        self.hidden_layer3 = tf.keras.layers.Dense(384, activation='relu')
+        # Layer 1
+        self.hidden_layer1 = tf.keras.layers.Dense(128)
+        self.batchnorm1 = tf.keras.layers.BatchNormalization()
+        self.relu1 = tf.keras.layers.Activation('relu')
+        self.dropout1 = tf.keras.layers.Dropout(0.2)
+
+        # Layer 2
+        self.hidden_layer2 = tf.keras.layers.Dense(256)
+        self.batchnorm2 = tf.keras.layers.BatchNormalization()
+        self.relu2 = tf.keras.layers.Activation('relu')
+        self.dropout2 = tf.keras.layers.Dropout(0.2)
+
+        # Layer 3
+        self.hidden_layer3 = tf.keras.layers.Dense(512)
+        self.batchnorm3 = tf.keras.layers.BatchNormalization()
+        self.relu3 = tf.keras.layers.Activation('relu')
+        self.dropout3 = tf.keras.layers.Dropout(0.2)
+
+        # Output layer — switch activation depending on task
         self.output_layer = tf.keras.layers.Dense(
-            num_output_nodes, 
-            activation=tf.keras.activations.softplus, 
-            use_bias=False)
-    
+            num_output_nodes,
+            activation='softplus'  # or 'softmax' for classification
+        )
+
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
-        x = inputs
-        x = self.hidden_layer1(x)
-        x = self.dropout(x)
+        x = self.hidden_layer1(inputs)
+        x = self.batchnorm1(x)
+        x = self.relu1(x)
+        x = self.dropout1(x)
+
         x = self.hidden_layer2(x)
-        x = self.dropout(x)
+        x = self.batchnorm2(x)
+        x = self.relu2(x)
+        x = self.dropout2(x)
+
         x = self.hidden_layer3(x)
-        x = self.dropout(x)
+        x = self.batchnorm3(x)
+        x = self.relu3(x)
+        x = self.dropout3(x)
+
         return self.output_layer(x)
     
     def get_config(self):
