@@ -1,4 +1,5 @@
 {
+    "networkStructure": "SupervisedNN",
     "lambda_s": [
         1e-06
     ],
@@ -12,7 +13,6 @@
         1e-06
     ],
     "errorWeighting": true,
-    "saveLossHistory": true,
     "batch_size": 128,
     "trainingFile": "spf_datasets/train_dat_16_500_RhoOverOmega_0.0001.dat",
     "validationFile": "spf_datasets/val_dat_16_500_RhoOverOmega_0.0001.dat",
@@ -31,8 +31,8 @@
     "correlatorCols": "3:",
     "errormethod": "jackknife",
     "saveParams": true,
+    "saveLossHistory": true,
     "verbose": true,
     "outputFile": "RhoOverOmega_mock_BW_Nt16_noise2_rec.txt",
-    "outputDir": "./outputs/",
-    "networkStructure": "SupervisedNN"
+    "outputDir": "./outputs/"
 }

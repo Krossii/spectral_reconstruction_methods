@@ -79,10 +79,10 @@ class SupervisedNN(tf.keras.Model):
         self.relu3 = tf.keras.layers.Activation('relu')
         self.dropout3 = tf.keras.layers.Dropout(0.2)
 
-        # Output layer — switch activation depending on task
+        # Output layer
         self.output_layer = tf.keras.layers.Dense(
             num_output_nodes,
-            activation='softplus'  # or 'softmax' for classification
+            activation='softplus'
         )
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
@@ -326,6 +326,34 @@ class supervisedFit:
             file = np.load(f, allow_pickle=True)
         return file
             
+    def fit_known(
+            self, x: np.ndarray, error: np.ndarray, 
+            correlator: np.ndarray, finiteT_kernel: bool,
+            Nt: int, omega: np.ndarray, model_file: str,
+            extractedQuantity: str = "RhoOverOmega", 
+            verbose: bool = True
+            ) -> Tuple[np.ndarray, np.ndarray]:
+        kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
+        del_omega = omega[1] - omega[0]
+        errorWeight = error if self.errorWeighting else np.ones(len(x))
+        model = load_model(model_file, custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
+        correlator = tf.reshape(correlator, (1,len(correlator)))
+
+        lossCalc = LossCalculator(
+            model=model,
+            y_true=correlator,
+            kernel=kernel,
+            delomega=del_omega,
+            std=errorWeight,
+            lambda_s_func=lambda x: self.lambda_s[0],
+            lambda_l2_func=lambda x: self.lambda_l2[0]
+        )
+        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)
+        trainer = networkTrainer(model, optimizer, lossCalc)
+        total_loss, individual_loss = trainer.test_step(0, correlator, error)
+        spectralFunction = model(correlator)
+        return np.squeeze(spectralFunction), total_loss, individual_loss
+
     def fitCorrelator(
             self, x: np.ndarray, error: np.ndarray, 
             correlator: np.ndarray, finiteT_kernel: bool, 
@@ -394,7 +422,7 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = 'supervisedNN_{}.keras'.format(train_file[10:-4])
+        modelname = 'supervisedNN_{}.keras'.format(train_file[-10:-4])
         model.save(modelname)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
         val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
@@ -536,14 +564,21 @@ class FitRunner:
         print("=" * 40)
         print(messageString)
         print("=" * 40)
-        model = load_model(model_file, custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
-        correlator = tf.reshape(fittedQuantity, (1,len(fittedQuantity)))
-        spectralFunctions = model(correlator)
-        total_loss_value, individual_losses = networkTrainer.test_step(0, rho=spectralFunctions, corr=correlator, err=self.error)
+        spectralFunction, total_loss, individual_loss = self.fitter.fit_known(
+            self.x,
+            self.error,
+            fittedQuantity,
+            self.finiteT_kernel,
+            self.Nt,
+            self.omega,
+            model_file,
+            extractedQuantity=self.extractedQuantity,
+            verbose=self.verbose
+        )
         if self.verbose:
             print("-" * 40)
-        results.append(np.squeeze(spectralFunctions))
-        loss_histories.append(np.concatenate(np.squeeze(total_loss_value), np.squeeze(individual_losses)))
+        results.append(np.squeeze(spectralFunction))
+        loss_histories.append(np.insert(np.array(individual_loss), 0, np.array(total_loss)))
     
     def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
         results = []
@@ -554,7 +589,9 @@ class FitRunner:
             self.correlators = self.correlators.T
         n_correlators = self.correlators.shape[0]
         if self.parameterHandler.get_params()["eval_model"]:
-            self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, loss_histories, self.parameterHandler.get_params()["model_file"])
+            self.pred_res(self.mean, "Fitting mean correlator", results, loss_histories, self.parameterHandler.get_params()["model_file"])
+            for i, corr in enumerate(self.correlators):
+                self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, loss_histories, self.parameterHandler.get_params()["model_file"])
         else:
             model_name = self.run_single_fit(self.mean, "Fitting mean correlator", results, loss_histories)
             for i, corr in enumerate(self.correlators):

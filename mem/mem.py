@@ -107,23 +107,30 @@ class mem:
 
     def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         V, xi, U = np.linalg.svd(kernel, full_matrices=False)
+        for s in xi: print(s)
+        print("\n")
         U= U.T
-        M = (np.diag(xi) @ V.T * np.trace(self.cov_mat_inv) @ V @ np.diag(xi))
+        xi = np.array(list(itertools.takewhile(lambda x: x > 1e-10, xi)))
+        s = xi.size
+        V = V[:,:s]
+        U = U[:,:s]
+        print("Singular space dimension:", s, "down from:", min(self.N_t, len(self.w)))
+
+        VXi = np.dot(V, np.diag(xi))
+
+        M = np.dot(VXi.T, np.dot(np.trace(self.cov_mat_inv), VXi))
         b_min = np.zeros((len(self.alpha), M.shape[0]))
         rho_min = np.zeros((len(self.alpha), len(self.w)))
         for i in range(len(self.alpha)):
-            b_min[i][:] = self.minimizer(corr, xi, V, M, U, kernel, self.alpha[i])
-            rho_min[i][:] = self.def_model * np.exp(U @ b_min[i][:])
+            b_min[i][:], rho_min[i][:] = self.minimizer(corr, VXi, M, U, self.alpha[i])
         return rho_min
 
     def minimizer(self,
-                corr: np.ndarray, xi: np.ndarray, V: np.ndarray, 
-                M: np.ndarray, U: np.ndarray, kernel: np.ndarray,
-                al: float) -> np.ndarray:
+                corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float) -> np.ndarray:
         N_s = M.shape[0]
         u = np.zeros((N_s))
         u[0] = 1
-        rho = self.def_model *np.exp(U @ u)
+        rho = self.def_model *np.exp(np.dot(U, u))
 
         stoppingcondition = 100
         normcondition = 10000
@@ -138,8 +145,9 @@ class mem:
                 else:
                     mu *= 10
                 
-                g = np.diag(xi) @ V.T @ self.partialL_partialG(Di(kernel, rho, self.delomega), corr)
-                T = U.T @ np.diag(rho) @ U
+                G_rho = np.dot(VXi, np.dot(U.T, rho))
+                g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr))
+                T = np.dot(U.T, np.dot(np.diag(rho), U))
                 Gamma, P = np.linalg.eigh(T)
                 Psqgamma = np.dot(P, np.diag(np.sqrt(Gamma)))
                 B = np.dot(Psqgamma.T, np.dot(M, Psqgamma))
@@ -147,21 +155,18 @@ class mem:
                 Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma)), P.T))
                 Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda)
                 du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
-
-                #A = (al + mu)*np.identity(N_s) + M @ T
-                #f = -al*b - g
-                #del_b = solve(A, f)
-                
-                normcondition = np.transpose(du) @ T @ du
+                normcondition = np.dot(np.transpose(du), np.dot(T, du))
                 mucounter += 1
+
             u += du
-            
-            stoppingcondition = 2*(np.linalg.norm(-al*T @ u - T @ g))**2/((np.linalg.norm(-al*T @ u) + np.linalg.norm(T @ g))**2)
-            rho = self.def_model * np.exp(U @ u)
+
+            stoppingcondition = 2*(np.linalg.norm(-al*np.dot(T, u) - np.dot(T, g)))**2/((np.linalg.norm(-al*np.dot(T, u)) + np.linalg.norm(np.dot(T, g)))**2)
+            rho = self.def_model * np.exp(np.dot(U, u))
             #this goes to inf/nan rho for some reason - investigate this next!
 
             solveccounter += 1
             if solveccounter % 50000 == 0:
+                print(u)
                 print(stoppingcondition)
 
             if solveccounter > 100000000:
@@ -170,7 +175,7 @@ class mem:
             print("Found solution vector after iteration", solveccounter)
         else:
             print("No solution found in reasonable time.")
-        return u
+        return u, rho
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         P_alphaHM = 1/self.alpha
