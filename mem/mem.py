@@ -102,7 +102,7 @@ class mem:
         return kernel
 
     def partialL_partialG(self, G_rho: np.ndarray, corr: np.ndarray)-> np.ndarray:
-        return np.dot((G_rho - corr), np.sum(self.cov_mat_inv))
+        return np.dot(self.cov_mat_inv, (G_rho - corr))
 
     def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         V, xi, U = np.linalg.svd(kernel, full_matrices=False)
@@ -115,7 +115,7 @@ class mem:
 
         VXi = np.dot(V, np.diag(xi))
 
-        M = np.dot(VXi.T, np.dot(np.trace(self.cov_mat_inv), VXi))
+        M = np.dot(VXi.T, np.dot(self.cov_mat_inv, VXi))
         rho_min = np.zeros((len(self.alpha), len(self.w)))
 
         for i in range(len(self.alpha)):
