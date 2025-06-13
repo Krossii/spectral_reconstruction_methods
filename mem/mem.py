@@ -1,5 +1,7 @@
 from scipy import integrate
 from scipy.linalg import solve
+from scipy.optimize import minimize
+from scipy.optimize import check_grad
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -100,15 +102,10 @@ class mem:
         return kernel
 
     def partialL_partialG(self, G_rho: np.ndarray, corr: np.ndarray)-> np.ndarray:
-        first_derivative = np.zeros((self.N_t))
-        for k in range(self.N_t):
-            first_derivative[k] = (G_rho[k] - corr[k])*np.sum(self.cov_mat_inv[k][:])
-        return first_derivative
+        return np.dot((G_rho - corr), np.sum(self.cov_mat_inv))
 
     def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         V, xi, U = np.linalg.svd(kernel, full_matrices=False)
-        for s in xi: print(s)
-        print("\n")
         U= U.T
         xi = np.array(list(itertools.takewhile(lambda x: x > 1e-10, xi)))
         s = xi.size
@@ -119,10 +116,10 @@ class mem:
         VXi = np.dot(V, np.diag(xi))
 
         M = np.dot(VXi.T, np.dot(np.trace(self.cov_mat_inv), VXi))
-        b_min = np.zeros((len(self.alpha), M.shape[0]))
         rho_min = np.zeros((len(self.alpha), len(self.w)))
+
         for i in range(len(self.alpha)):
-            b_min[i][:], rho_min[i][:] = self.minimizer(corr, VXi, M, U, self.alpha[i])
+            rho_min[i][:] = self.minimizer(corr, VXi, M, U, self.alpha[i])
         return rho_min
 
     def minimizer(self,
@@ -133,40 +130,42 @@ class mem:
         rho = self.def_model *np.exp(np.dot(U, u))
 
         stoppingcondition = 100
-        normcondition = 10000
+        mu = 0
         solveccounter = 0
         while stoppingcondition >= 1e-5:
-            mucounter = 0
-            while normcondition > 0.2*np.sum(self.def_model):
+            #mucounter = 0
+            """while normcondition > 0.2*np.sum(self.def_model):
                 if mucounter == 0:
                     mu = 0
                 elif mucounter == 1:
                     mu = al/10000
                 else:
-                    mu *= 10
-                
-                G_rho = np.dot(VXi, np.dot(U.T, rho))
-                g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr))
-                T = np.dot(U.T, np.dot(np.diag(rho), U))
-                Gamma, P = np.linalg.eigh(T)
-                Psqgamma = np.dot(P, np.diag(np.sqrt(Gamma)))
-                B = np.dot(Psqgamma.T, np.dot(M, Psqgamma))
-                Lambda, R = np.linalg.eigh(B)
-                Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma)), P.T))
-                Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda)
-                du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
-                normcondition = np.dot(np.transpose(du), np.dot(T, du))
-                mucounter += 1
+                    mu *= 10"""
+            G_rho = np.dot(VXi, np.dot(U.T, rho))
+            g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr))
+            T = np.dot(U.T, np.dot(np.diag(rho), U))
+            Gamma, P = np.linalg.eigh(T)
+            Gamma_safe = np.maximum(Gamma, 1e-4)
+            Psqgamma = np.dot(P, np.diag(np.sqrt(Gamma_safe)))
+            B = np.dot(Psqgamma.T, np.dot(M, Psqgamma))
+            Lambda, R = np.linalg.eigh(B)
+            Lambda_safe = np.maximum(Lambda, 1e-4)
+            Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma_safe)), P.T))
+            Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda_safe)
+            du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
+                #mucounter += 1
 
             u += du
 
             stoppingcondition = 2*(np.linalg.norm(-al*np.dot(T, u) - np.dot(T, g)))**2/((np.linalg.norm(-al*np.dot(T, u)) + np.linalg.norm(np.dot(T, g)))**2)
-            rho = self.def_model * np.exp(np.dot(U, u))
-            #this goes to inf/nan rho for some reason - investigate this next!
+
+            dot_Uu = np.dot(U,u)
+            dot_Uu = np.clip(dot_Uu, -50, 50) #safe range for inf/nan values
+            rho = self.def_model * np.exp(dot_Uu)
 
             solveccounter += 1
             if solveccounter % 50000 == 0:
-                print(u)
+                print("‖g‖:", np.linalg.norm(g), "‖u‖:", np.linalg.norm(u), "‖du‖:", np.linalg.norm(du))
                 print(stoppingcondition)
 
             if solveccounter > 100000000:
@@ -175,7 +174,7 @@ class mem:
             print("Found solution vector after iteration", solveccounter)
         else:
             print("No solution found in reasonable time.")
-        return u, rho
+        return rho
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         P_alphaHM = 1/self.alpha
@@ -186,7 +185,11 @@ class mem:
                 for k in range(len(self.w)):
                     lam_mat[j][k] = self.delomega*np.sqrt(rho[i][j]) * Hess_mat[j][k] * np.sqrt(rho[i][k])
             eigval, eigvec = np.linalg.eigh(lam_mat)
-            S[i] = self.delomega*np.sum(rho[i][:] - self.def_model - rho[i][:]*np.log(rho[i][:]/self.def_model))
+            self.def_model += 0.000001
+            div = rho[i][:]/self.def_model
+            div[0] = 1
+            S[i] = self.delomega*np.sum(rho[i][:] - self.def_model - rho[i][:]*np.log(div))
+            self.def_model -= 0.000001
             G = Di(kernel, rho[i][:], self.delomega)
             L[i] = 1/2 * np.sum(sum((corr - G) @ self.cov_mat_inv[:][j] * (corr[j] - G[j]) for j in range(self.N_t)))
             exp[i] = np.exp(1/2 * np.sum(np.log(self.alpha[i]/(self.alpha[i] + eigval[:])))+ self.alpha[i] * S[i] - L[i])
@@ -203,8 +206,13 @@ class mem:
             P_alphaDHM_red[i] = P_alphaDHM[alpha_ind[i]]
             rho_red[i][:] = rho[alpha_ind[i]][:]
         normalizing_fac = integrate.trapezoid(P_alphaDHM_red, alpha_int)
-        if normalizing_fac == 0: normalizing_fac = 1
+        print(alpha_int)
+        print(P_alphaDHM)
         rho_out = np.zeros(len(self.w))
+        if normalizing_fac < 1e-6: 
+            P_alphaDHM_red = 1
+            normalizing_fac = 1
+            return np.mean(rho, axis=0), P_alphaDHM_red, alpha_int, Hess_mat
         for i in range(len(self.w)):
             rho_out[i] = integrate.trapezoid(np.transpose(rho_red)[i][:] * P_alphaDHM_red/normalizing_fac, alpha_int)
         return rho_out, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
@@ -263,7 +271,7 @@ class mem:
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")
             error = np.zeros(len(omega))
-        if len(Prob_dist) == 0:
+        if Prob_dist == 1:
             print("*"*40)
             print("Probability distribution empty. Aborting error evaluation.")
             error = np.zeros(len(omega))
