@@ -6,11 +6,11 @@
     "omega_min": 0,
     "omega_max": 5,
     "omega_points": 500,
-    "Nt": 16,
+    "Nt": 32,
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B2_z.txt",
+    "correlatorFile": "/home/Christian/Desktop/mock-data-main/BW/mock_corr_BW_Nt32_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -18,6 +18,6 @@
     "errormethod": "jackknife",
     "saveParams": true,
     "verbose": true,
-    "outputFile": "RhoOverOmega_data_wilson_emconduc_B2_z_w10_500_seed42_rec.txt",
+    "outputFile": "RhoOverOmega_mock_BW_Nt32_noise2_rec.txt",
     "outputDir": "./outputs/"
 }

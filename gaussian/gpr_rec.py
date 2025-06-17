@@ -37,16 +37,23 @@ class gaussianFit:
         return ker
 
     def KL_kernel_Position_FiniteT(self, Position, Omega):
-        Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-        with np.errstate(divide='ignore'):
-            ker = np.cosh(Omega * (Position-1/(2)*self.Nt)) / np.sinh(Omega*self.Nt/2)
+        if type(Position) == np.ndarray:
+            print(type(Position))
+            Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
+            with np.errstate(divide='ignore'):
+                ker = np.cosh(Omega * (Position-1/(2)*self.Nt)) / np.sinh(Omega*self.Nt/2)
 
-            # set all entries in ker to 1 where Position is modulo 1/T and the entry is nan, because of numerical instability for large Omega
-            ker[np.isnan(ker) & (Position % (self.Nt) == 0)] = 1
-            #set all other nan entries to 0
-            ker[np.isnan(ker)] = 0
+                # set all entries in ker to 1 where Position is modulo 1/T and the entry is nan, because of numerical instability for large Omega
+                ker[np.isnan(ker) & (Position % (self.Nt) == 0)] = 1
+                #set all other nan entries to 0
+                ker[np.isnan(ker)] = 0
+            return ker
+        else:
+            return np.cosh(Omega*(Position - 0.5*self.Nt))/np.sinh(0.5*Omega*self.Nt)
+        #print(ker)
+        #quit()
 
-        return ker
+        
 
     def KL_kernel_Omega_fin_T(self,x,Omega):
         ret=self.KL_kernel_Position_FiniteT(x, Omega)
@@ -123,7 +130,10 @@ class gaussianFit:
             if verbose:
                 print("Optimizing Kernel Parameters...")
             self.OptimizeKernelParameters(model, [self.variance, self.lengthscale])
+    
         res, res_err = model.predict(omega)
+    
+        quit()
         return res, res_err
 
 class ParameterHandler:

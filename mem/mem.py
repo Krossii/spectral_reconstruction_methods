@@ -132,15 +132,8 @@ class mem:
         stoppingcondition = 100
         mu = 0
         solveccounter = 0
+        stopping_threshhold = 100000000
         while stoppingcondition >= 1e-5:
-            #mucounter = 0
-            """while normcondition > 0.2*np.sum(self.def_model):
-                if mucounter == 0:
-                    mu = 0
-                elif mucounter == 1:
-                    mu = al/10000
-                else:
-                    mu *= 10"""
             G_rho = np.dot(VXi, np.dot(U.T, rho))
             g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr))
             T = np.dot(U.T, np.dot(np.diag(rho), U))
@@ -153,7 +146,6 @@ class mem:
             Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma_safe)), P.T))
             Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda_safe)
             du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
-                #mucounter += 1
 
             u += du
 
@@ -168,32 +160,33 @@ class mem:
                 print("‖g‖:", np.linalg.norm(g), "‖u‖:", np.linalg.norm(u), "‖du‖:", np.linalg.norm(du))
                 print(stoppingcondition)
 
-            if solveccounter > 100000000:
+            if solveccounter > stopping_threshhold:
                 break
         if stoppingcondition < 1e-5:
             print("Found solution vector after iteration", solveccounter)
+        elif np.isnan(stoppingcondition):
+            print("Stoppincondition is nan.")
         else:
             print("No solution found in reasonable time.")
         return rho
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         P_alphaHM = 1/self.alpha
-        S, L, exp, lam_mat = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros((len(self.w), len(self.w)))
-        Hess_mat = np.transpose(kernel) @ np.linalg.inv(self.cov_mat_inv) @ kernel
+        S, L, exp = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
+        Hess_mat = np.dot(kernel.T, np.dot(self.cov_mat_inv, kernel))
         for i in range(len(self.alpha)):
-            for j in range(len(self.w)):
-                for k in range(len(self.w)):
-                    lam_mat[j][k] = self.delomega*np.sqrt(rho[i][j]) * Hess_mat[j][k] * np.sqrt(rho[i][k])
+            lam_mat = np.dot(np.sqrt(np.diag(rho[i][:])), np.dot(Hess_mat, np.sqrt(np.diag(rho[i][:]))))
             eigval, eigvec = np.linalg.eigh(lam_mat)
-            self.def_model += 0.000001
-            div = rho[i][:]/self.def_model
-            div[0] = 1
-            S[i] = self.delomega*np.sum(rho[i][:] - self.def_model - rho[i][:]*np.log(div))
-            self.def_model -= 0.000001
+            S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
             G = Di(kernel, rho[i][:], self.delomega)
-            L[i] = 1/2 * np.sum(sum((corr - G) @ self.cov_mat_inv[:][j] * (corr[j] - G[j]) for j in range(self.N_t)))
-            exp[i] = np.exp(1/2 * np.sum(np.log(self.alpha[i]/(self.alpha[i] + eigval[:])))+ self.alpha[i] * S[i] - L[i])
+            L[i] = 1/2 * np.sum(np.dot((corr - G), np.dot(self.cov_mat_inv, (corr - G))))
+            print(S[i])
+            print(L[i])
+            exp[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))) *np.exp(self.alpha[i] * S[i] - L[i])
+            print(np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))))
+            print(np.exp(self.alpha[i] * S[i] - L[i]))
         P_alphaDHM = P_alphaHM * exp
+
         alpha_ind = []
         for i in range(len(self.alpha)):
             if P_alphaDHM[i] >= 10**(-1) * P_alphaDHM.max():

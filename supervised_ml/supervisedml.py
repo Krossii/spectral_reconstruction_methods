@@ -422,7 +422,7 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = 'supervisedNN_{}.keras'.format(train_file[-10:-4])
+        modelname = 'supervisedNN_Nt{}_{}.keras'.format(Nt, train_file[-10:-4])
         model.save(modelname)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
         val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
