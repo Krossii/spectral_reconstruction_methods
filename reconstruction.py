@@ -83,6 +83,8 @@ class ParameterHandler:
         return cleaned_dict
 
     def write_new_json(self) -> None:
+        if self.get_params()["cluster"]:
+            cluster_path = "/home/candratschke/spectral_reconstruction_methods/"
         if self.params["Method"] == "UnsupervisedNN":
             black_list_vals = set((
                 "Method", "batch_size", "create_data","data_noise", "trainingFile", 
@@ -92,7 +94,10 @@ class ParameterHandler:
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = "SpectralNN"
-            with open("./neuralFit/params.json", "w") as f:
+            subpath = "neuralFit/params.json"
+            if self.get_params()["cluster"]:
+                subpath = os.path.join(cluster_path, subpath)
+            with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "SupervisedNN":
             black_list_vals = set((
@@ -102,8 +107,10 @@ class ParameterHandler:
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = self.params["Method"]
-            print(os.getcwd())
-            with open("./supervised_ml/params.json", "w") as f:
+            subpath = "supervised_ml/params.json"
+            if self.get_params()["cluster"]:
+                subpath = os.path.join(cluster_path, subpath)
+            with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "Gaussian":
             black_list_vals = set((
@@ -114,7 +121,10 @@ class ParameterHandler:
                 "alpha_points", "default_model"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
-            with open("./gaussian/params.json", "w") as f:
+            subpath = "gaussian/params.json"
+            if self.get_params()["cluster"]:
+                subpath = os.path.join(cluster_path, subpath)
+            with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "MEM":
             black_list_vals = set((
@@ -124,7 +134,10 @@ class ParameterHandler:
                 "saveLossHistory", "optimizer", "variance", "lengthscale"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
-            with open("./mem/params.json", "w") as f:
+            subpath = "mem/params.json"
+            if self.get_params()["cluster"]:
+                subpath = os.path.join(cluster_path, subpath)
+            with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
 
 def call_create_data_program(parameterHandler: ParameterHandler):
@@ -162,8 +175,6 @@ def main(paramsDefaultDict):
     parser=initializeArgumentParser(paramsDefaultDict)
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)
-    if parameterHandler.get_params()["cluster"]:
-        os.chdir("/home/candratschke/spectral_reconstruction_methods/")
     parameterHandler.load_params(args.config, args)
     call_create_data_program(parameterHandler)
     parameterHandler.write_new_json()

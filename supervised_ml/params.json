@@ -34,5 +34,6 @@
     "verbose": true,
     "outputFile": "RhoOverOmega_mock_BW_Nt16_noise2_rec.txt",
     "outputDir": "./outputs/",
+    "cluster": false,
     "networkStructure": "SupervisedNN"
 }
