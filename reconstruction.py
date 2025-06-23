@@ -92,7 +92,7 @@ class ParameterHandler:
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = "SpectralNN"
-            with open("/neuralFit/params.json", "w") as f:
+            with open("./neuralFit/params.json", "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "SupervisedNN":
             black_list_vals = set((
@@ -102,8 +102,8 @@ class ParameterHandler:
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = self.params["Method"]
-            #print the cwd at some point here I guess
-            with open("/supervised_ml/params.json", "w") as f:
+            print(os.getcwd())
+            with open("./supervised_ml/params.json", "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "Gaussian":
             black_list_vals = set((
@@ -114,7 +114,7 @@ class ParameterHandler:
                 "alpha_points", "default_model"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
-            with open("/gaussian/params.json", "w") as f:
+            with open("./gaussian/params.json", "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "MEM":
             black_list_vals = set((
@@ -124,7 +124,7 @@ class ParameterHandler:
                 "saveLossHistory", "optimizer", "variance", "lengthscale"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
-            with open("/mem/params.json", "w") as f:
+            with open("./mem/params.json", "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
 
 def call_create_data_program(parameterHandler: ParameterHandler):
