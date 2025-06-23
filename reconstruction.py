@@ -147,7 +147,12 @@ def call_create_data_program(parameterHandler: ParameterHandler):
         print(parameterHandler.get_params()["create_data"])
 
     if parameterHandler.get_params()["create_data"]:
-        subprocess.Popen(["python", "create_data.py", "--config", "../params.json"], cwd="supervised_ml/").communicate()
+
+        if parameterHandler.get_params()["cluster"]:
+            working_dir = "/home/candratschke/spectral_reconstruction_methods/supervised_ml/"
+        else:
+            working_dir = "supervised_ml/"
+        subprocess.Popen(["python", "create_data.py", "--config", "../params.json"], cwd=working_dir).communicate()
         if parameterHandler.get_verbose():
             print("*"*40)
             print("Successfully ran data creation.")
@@ -160,16 +165,32 @@ def call_method_programs(parameterHandler: ParameterHandler):
         print(parameterHandler.get_params()["Method"])
 
     if parameterHandler.get_params()["Method"] == "UnsupervisedNN":
-        subprocess.Popen(["python", "neuralFit.py", "--config", "params.json"], cwd="neuralFit/").communicate()
+        if parameterHandler.get_params()["cluster"]:
+            working_dir = "/home/candratschke/spectral_reconstruction_methods/neuralFit/"
+        else:
+            working_dir = "neuralFit/"
+        subprocess.Popen(["python", "neuralFit.py", "--config", "params.json"], cwd=working_dir).communicate()
 
     if parameterHandler.get_params()["Method"] == "SupervisedNN":
-        subprocess.Popen(["python", "supervisedml.py", "--config", "params.json"], cwd="supervised_ml/").communicate()
+        if parameterHandler.get_params()["cluster"]:
+            working_dir = "/home/candratschke/spectral_reconstruction_methods/supervised_ml/"
+        else:
+            working_dir = "supervised_ml/"
+        subprocess.Popen(["python", "supervisedml.py", "--config", "params.json"], cwd=working_dir).communicate()
 
     if parameterHandler.get_params()["Method"] == "Gaussian":
-        subprocess.Popen(["python", "gpr_rec.py", "--config", "params.json"], cwd="gaussian/").communicate()
+        if parameterHandler.get_params()["cluster"]:
+            working_dir = "/home/candratschke/spectral_reconstruction_methods/gaussian/"
+        else:
+            working_dir = "gaussian/"
+        subprocess.Popen(["python", "gpr_rec.py", "--config", "params.json"], cwd=working_dir).communicate()
     
     if parameterHandler.get_params()["Method"] == "MEM":
-        subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd="mem/").communicate()
+        if parameterHandler.get_params()["cluster"]:
+            working_dir = "/home/candratschke/spectral_reconstruction_methods/mem/"
+        else:
+            working_dir = "mem/"
+        subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd=working_dir).communicate()
 
 def main(paramsDefaultDict):
     parser=initializeArgumentParser(paramsDefaultDict)
