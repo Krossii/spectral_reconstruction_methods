@@ -582,6 +582,7 @@ class FitRunner:
     def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
         results = []
         loss_histories = []
+        pred_loss_histories = []
         if self.correlators.ndim == 1:
             self.correlators = np.array([self.correlators])
         else:
@@ -594,8 +595,11 @@ class FitRunner:
         else:
             model_name = self.run_fit(self.mean, "Fitting mean correlator", results, loss_histories)
             for i, corr in enumerate(self.correlators):
-                self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, loss_histories, model_name)
-        return np.array(results), np.array(loss_histories)
+                self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, pred_loss_histories, model_name)
+        np.array(loss_histories)
+        np.array(pred_loss_histories)
+        loss_histories = np.concatenate((np.squeeze(loss_histories), pred_loss_histories), axis= 0)
+        return np.array(results), loss_histories
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
         N = len(samples)
