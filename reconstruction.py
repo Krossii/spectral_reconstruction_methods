@@ -162,6 +162,8 @@ def main(paramsDefaultDict):
     parser=initializeArgumentParser(paramsDefaultDict)
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)
+    if parameterHandler.get_params()["cluster"]:
+        os.chdir("/home/candratschke/spectral_reconstruction_methods/")
     parameterHandler.load_params(args.config, args)
     call_create_data_program(parameterHandler)
     parameterHandler.write_new_json()
@@ -215,8 +217,8 @@ paramsDefaultDict = {
     "saveParams": False,
     "verbose": False,
     "outputFile": "",
-    "outputDir": ""
-
+    "outputDir": "",
+    "cluster": False
 }
 
 
