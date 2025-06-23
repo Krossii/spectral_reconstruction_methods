@@ -304,7 +304,6 @@ class supervisedFit:
         self.errorWeighting=networkParameters.errorWeighting
         self.networkStructure=networkParameters.networkStructure
 
-
     def initKernel(
             self,extractedQuantity:str,finiteT_kernel:bool,
             Nt:int,x:np.ndarray,omega:np.ndarray
@@ -535,7 +534,7 @@ class FitRunner:
         correlator = data[:, correlator_cols]
         return x, mean, error, correlator    
 
-    def run_single_fit(self, fittedQuantity, messageString ,results: List[np.ndarray], loss_histories: List[np.ndarray]) -> None:
+    def run_fit(self, fittedQuantity, messageString ,results: List[np.ndarray], loss_histories: List[np.ndarray]) -> None:
         start_time = time.time()
         print("=" * 40)
         print(messageString)
@@ -593,7 +592,7 @@ class FitRunner:
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, loss_histories, self.parameterHandler.get_params()["model_file"])
         else:
-            model_name = self.run_single_fit(self.mean, "Fitting mean correlator", results, loss_histories)
+            model_name = self.run_fit(self.mean, "Fitting mean correlator", results, loss_histories)
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, loss_histories, model_name)
         return np.array(results), np.array(loss_histories)
