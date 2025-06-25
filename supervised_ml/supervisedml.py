@@ -57,6 +57,46 @@ def Di(KL, rhoi, delomega):
     dis = dis * delomega  # Multiply by delomega
     return dis
 
+class KadesFC(tf.keras.Model):
+    def __init__(self, num_output_nodes: int, **kwargs):
+        super(KadesFC, self).__init__(**kwargs)
+        self.num_output_nodes = num_output_nodes
+        #input layer
+        self.relu1 = tf.keras.layers.Activation('relu')
+
+        #Centermodule
+        self.fc1 = tf.keras.layers.Dense(6700)
+        self.relu2 = tf.keras.layers.Activation('relu')
+        self.fc2 = tf.keras.layers.Dense(12168)
+        self.relu3 = tf.keras.layers.Activation('relu')
+        self.fc3 = tf.keras.layers.Dense(1024)
+
+        #output layers
+        self.relu4 = tf.keras.layers.Activation('relu')
+        self.fc4 = tf.keras.layers.Dense(num_output_nodes)
+
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        x = self.relu1(inputs)
+        
+        x = self.fc1(x)
+        x = self.relu2(x)
+        x = self.fc2(x)
+        x = self.relu3(x)
+        x = self.fc3(x)
+
+        x = self.relu4(x)
+        return self.fc4(x)
+    
+    def get_config(self):
+        config = super(KadesFC, self).get_config()
+        config.update({"num_output_nodes": self.num_output_nodes})
+        return config
+    
+    @classmethod
+    def from_config(cls, config):
+        num_output_nodes = config.pop('num_output_nodes')
+        return cls(num_output_nodes=num_output_nodes, **config)
+
 class SupervisedNN(tf.keras.Model):
     def __init__(self, num_output_nodes: int, **kwargs):
         super(SupervisedNN, self).__init__(**kwargs)
@@ -275,7 +315,7 @@ class networkParameters:
     learning_rate: List = field(default_factory=list)
     batch_size: int = 128
     errorWeighting: bool = False
-    networkStructure: str = "SupervisedNN"
+    networkStructure: str = ""
 
     def __post_init__(self):
         # Ensure lambda_s, lambda_l2, epochs, learning_rate are lists of the same length
@@ -335,7 +375,10 @@ class supervisedFit:
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
         del_omega = omega[1] - omega[0]
         errorWeight = error if self.errorWeighting else np.ones(len(x))
-        model = load_model(model_file, custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
+        if self.networkStructure == "SupervisedNN":
+            model = load_model(model_file, custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
+        if self.networkStructure == "KadesFC":
+            model = load_model(model_file, custom_objects = {'KadesFC': KadesFC, 'LossCalculator': LossCalculator})
         correlator = tf.reshape(correlator, (1,len(correlator)))
 
         lossCalc = LossCalculator(
@@ -367,6 +410,8 @@ class supervisedFit:
 
         if self.networkStructure == "SupervisedNN":
             model = SupervisedNN(num_output_nodes=len(omega))
+        if self.networkStructure == "KadesFC":
+            model = KadesFC(num_output_nodes=len(omega))
         else:
             raise ValueError("Invalid choice of network")
         
@@ -421,7 +466,7 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = 'supervisedNN_Nt{}_{}.keras'.format(Nt, train_file[-10:-4])
+        modelname = '{}_Nt{}_{}.keras'.format(self.networkStructure, Nt, train_file[-10:-4])
         model.save(modelname)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
         val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
@@ -506,13 +551,16 @@ class FitRunner:
         self.parameterHandler = parameterHandler
         self.net_params = self.parameterHandler.getNetworkParams()
         self.fitter = supervisedFit(self.net_params)
-        self.x, self.mean, self.error, self.correlators = self.extractColumns(
+        self.x = np.linspace(0, parameterHandler.get_params()["Nt"], parameterHandler.get_params()["Nt"])
+        self.error = np.random.normal(loc = 0.0, scale= 10e-4, size = (100))
+        self.mean, self.correlators = np.zeros((100)), np.zeros((100))
+        """self.x, self.mean, self.error, self.correlators = self.extractColumns(
             self.parameterHandler.get_correlator_file(),
             self.parameterHandler.get_params()["xCol"],
             self.parameterHandler.get_params()["meanCol"],
             self.parameterHandler.get_params()["errorCol"],
             self.parameterHandler.get_correlator_cols()
-        )
+        )"""
         self.omega = np.linspace(
             self.parameterHandler.get_params()["omega_min"],
             self.parameterHandler.get_params()["omega_max"],
@@ -693,7 +741,7 @@ def main(paramsDefaultDict):
 
 
 paramsDefaultDict = {
-    #choice of SupervisedNN, UnsupervisedNN, Gaussian, MEM
+    #choice of SupervisedNN, KadesFC, UnsupervisedNN, Gaussian, MEM
     "networkStructure": "SupervisedNN",
     #NetworkParams (Ai specrec)
     "lambda_s": [1e-5],

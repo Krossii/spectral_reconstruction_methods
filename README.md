@@ -137,6 +137,8 @@ The following parameters can be specified in the JSON file or as command line ar
 | **verbose**          | `False`          | `True`, `False`                   | Print additional information during training |
 | **outputFile**       | `""`             | Any string                        | Name of the output file. If set to `null`, the output file will be named according to the correlator file and the extracted quantity |
 | **outputDir**        | `''`             | Any string                        | Directory where the output files will be saved. The path can be relative to the current working directory. |
+| **cluster**        | `False`             | `True`, `False`                   | Flag for use on a cluster. |
+| **cluster**        | `""`             | Any string                   | Directory of the filestructure on the cluster. This might be different from the working directory. |
 
 ## Passing Parameters
 
@@ -185,11 +187,11 @@ Create a JSON file (e.g., `params.json`):
     "saveLossHistory": true,
     "verbose": true,
     "outputFile": "",
-    "outputDir": "./outputs/"
+    "outputDir": "./outputs/",
+    "cluster": false,
+    "clusterpath": ""
 }
 ```
-
-
 
 Run the program with the JSON file:
 ```bash
@@ -201,6 +203,15 @@ Run the program with command line arguments:
 ```bash
 python neuralFit.py --config params.json --lambda_s 1e-6 3.55323189e-05 3.55323189e-05 --lambda_l2 1e-4 6.66754659e-08 6.66754659e-08 --epochs 2000 90000 10000 --learning_rate 1e-3 1e-4 1e-5 --errorWeighting true --networkStructure SpectralNN --omega_min 0 --omega_max 10 --omega_points 500 --Nt 16 --extractedQuantity RhoOverOmega --FiniteT_kernel true --multiFit false --correlatorFile correlator.txt --xCol 0 --meanCol 1 --errorCol 2 --correlatorCols "" --errormethod jackknife --saveParams true --saveLossHistory true --verbose true --outputFile null --outputDir ""
 ```
+
+## Known issues
+
+The following issues are known and still need to be fixed/read through.
+- mem needs to be read and tested extensively
+- the gpr part fails in the fredipy package (probably due to the way the kernel is given to the package)
+- supervised learning might need to be optimized considering the network structure
+- the cluster part has to be adjusted for all users
+
 
 ## Needed Libraries
 

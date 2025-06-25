@@ -84,7 +84,7 @@ class ParameterHandler:
 
     def write_new_json(self) -> None:
         if self.get_params()["cluster"]:
-            cluster_path = "/home/candratschke/spectral_reconstruction_methods/"
+            cluster_path = self.get_params()["clusterpath"]
         if self.params["Method"] == "UnsupervisedNN":
             black_list_vals = set((
                 "Method", "batch_size", "create_data","data_noise", "trainingFile", 
@@ -99,7 +99,7 @@ class ParameterHandler:
                 subpath = os.path.join(cluster_path, subpath)
             with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
-        if self.params["Method"] == "SupervisedNN":
+        if self.params["Method"] == "SupervisedNN" or self.params["Method"] == "KadesFC":
             black_list_vals = set((
                 "Method", "width", "create_data","data_noise", "optimizer",
                 "variance", "lengthscale", "alpha_min", "alpha_max",
@@ -149,7 +149,7 @@ def call_create_data_program(parameterHandler: ParameterHandler):
     if parameterHandler.get_params()["create_data"]:
 
         if parameterHandler.get_params()["cluster"]:
-            working_dir = "/home/candratschke/spectral_reconstruction_methods/supervised_ml/"
+            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "supervised_ml/")
         else:
             working_dir = "supervised_ml/"
         subprocess.Popen(["python", "create_data.py", "--config", "../params.json"], cwd=working_dir).communicate()
@@ -166,28 +166,28 @@ def call_method_programs(parameterHandler: ParameterHandler):
 
     if parameterHandler.get_params()["Method"] == "UnsupervisedNN":
         if parameterHandler.get_params()["cluster"]:
-            working_dir = "/home/candratschke/spectral_reconstruction_methods/neuralFit/"
+            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "neuralFit/")
         else:
             working_dir = "neuralFit/"
         subprocess.Popen(["python", "neuralFit.py", "--config", "params.json"], cwd=working_dir).communicate()
 
-    if parameterHandler.get_params()["Method"] == "SupervisedNN":
+    if parameterHandler.get_params()["Method"] == "SupervisedNN" or parameterHandler.get_params()["Method"] == "KadesFC":
         if parameterHandler.get_params()["cluster"]:
-            working_dir = "/home/candratschke/spectral_reconstruction_methods/supervised_ml/"
+            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "supervised_ml/")
         else:
             working_dir = "supervised_ml/"
         subprocess.Popen(["python", "supervisedml.py", "--config", "params.json"], cwd=working_dir).communicate()
 
     if parameterHandler.get_params()["Method"] == "Gaussian":
         if parameterHandler.get_params()["cluster"]:
-            working_dir = "/home/candratschke/spectral_reconstruction_methods/gaussian/"
+            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "gaussian/")
         else:
             working_dir = "gaussian/"
         subprocess.Popen(["python", "gpr_rec.py", "--config", "params.json"], cwd=working_dir).communicate()
     
     if parameterHandler.get_params()["Method"] == "MEM":
         if parameterHandler.get_params()["cluster"]:
-            working_dir = "/home/candratschke/spectral_reconstruction_methods/mem/"
+            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "mem/")
         else:
             working_dir = "mem/"
         subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd=working_dir).communicate()
@@ -203,7 +203,7 @@ def main(paramsDefaultDict):
 
 
 paramsDefaultDict = {
-    #choice of SupervisedNN, UnsupervisedNN, Gaussian, MEM
+    #choice of SupervisedNN, KadesFC, UnsupervisedNN, Gaussian, MEM
     "Method": "UnsupervisedNN",
     #NetworkParams (Ai specrec)
     "lambda_s": [1e-5],
@@ -250,7 +250,8 @@ paramsDefaultDict = {
     "verbose": False,
     "outputFile": "",
     "outputDir": "",
-    "cluster": False
+    "cluster": False,
+    "clusterpath": ""
 }
 
 

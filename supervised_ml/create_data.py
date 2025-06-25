@@ -362,10 +362,119 @@ class create_datset:
         for i in range(len(full_set)):
             if i in integers_split: val_dat.append(full_set[i])
             else: train_dat.append(full_set[i])
-        with open(f'spf_datasets/train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}.dat', 'wb') as f:
-            np.save(f, train_dat)
-        with open(f'spf_datasets/val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}.dat', 'wb') as f:
-            np.save(f, val_dat)
+        if ParameterHandler.get_params()["cluster"]:
+            cluster_path = os.path.join(ParameterHandler.get_params()["clusterpath"], "spf_datasets/")
+            train_file = f'train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
+            val_file = f'val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
+            with open(os.path.join(cluster_path, train_file), 'wb') as f:
+                np.save(f, train_dat)
+            with open(os.path.join(cluster_path, val_file), 'wb') as f:
+                np.save(f, val_dat)
+        else:
+            with open(f'spf_datasets/train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat', 'wb') as f:
+                np.save(f, train_dat)
+            with open(f'spf_datasets/val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat', 'wb') as f:
+                np.save(f, val_dat)
+        
+        if self.parameterHandler.get_verbose:
+            print("*"*40)
+            print("Files created.")
+
+class create_Kades_datset:
+    def __init__(self, w: np.ndarray, tau: np.ndarray, specfuncs: spectral_functions,
+                 corrs: correlators, parameterHandler: ParameterHandler) -> None:
+        self.breit_wigner = specfuncs.breit_wigner
+        self.mbreit_wigner = specfuncs.multiple_breit_wigner
+        self.get_corr = corrs.correlator
+        self.noise = corrs.noise
+        self.w = w
+        self.tau = tau
+        self.parameterHandler = parameterHandler
+
+
+    def breit_wigners(self):
+        one_dat = []
+        A = np.linspace(0.1,1,30)
+        M = np.linspace(0.5,3,30)
+        G = np.linspace(0.1,0.4,30)
+        if self.parameterHandler.get_verbose:
+            print("*"*40)
+            print("Creating single peaked Breit Wigner.")
+        for i in range(len(A)):
+            for j in range(len(M)):
+                for k in range(len(G)):
+                    rho = self.breit_wigner(self.w, A[i], M[j], G[k])
+                    normalizing_fac = np.trapezoid(rho, self.w)
+                    normed_rho = rho/normalizing_fac
+                    corr = self.get_corr(self.w, self.tau, normed_rho)
+                    noise = self.noise(corr)
+                    if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                        print("Nan value in single peaked BW")
+                    one_dat.append({
+                        'fct': normed_rho,
+                        'corr': corr,
+                        'noise': noise,
+                    })
+
+        mult_dat = []
+        A, M, G = [],[],[]
+        for i in range(7):
+            for j in range(7):
+                A.append([0.1 + i/7, 0.1 + j/7])
+                M.append([0.5 + i*3/7, 0.5 + j*3/7])
+                G.append([0.1 + i*0.4/7, 0.1 + j*0.4/7])
+        
+        if self.parameterHandler.get_verbose:
+            print("*"*40)
+            print("Creating double peaked Breit Wigner.")
+
+        for i in range(7**2):
+            for j in range(7**2):
+                for k in range(7**2):
+                    rho = self.mbreit_wigner(self.w, A[i][:], M[j][:], G[k][:])
+                    normalizing_fac = np.trapezoid(rho, self.w)
+                    normed_rho = rho/normalizing_fac
+                    corr = self.get_corr(self.w, self.tau, normed_rho)
+                    noise = self.noise(corr)
+                    if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                        print("Nan value in double peaked BW")
+                    mult_dat.append({
+                        'fct': normed_rho,
+                        'corr': corr,
+                        'noise': noise,
+                    })
+        return one_dat, mult_dat
+
+    def dataset(self):
+        if self.parameterHandler.get_verbose:
+            print("*"*40)
+            print("Creating the datasets.")
+        bw, mbw = self.breit_wigners()
+
+        if self.parameterHandler.get_verbose:
+            print("*"*40)
+            print("Splitting into test and validation sets.")
+        full_set = bw + mbw
+        train_dat = []
+        val_dat = []
+        integers_split = np.random.randint(
+            len(full_set), size = int((len(full_set))/5))
+        for i in range(len(full_set)):
+            if i in integers_split: val_dat.append(full_set[i])
+            else: train_dat.append(full_set[i])
+        if ParameterHandler.get_params()["cluster"]:
+            cluster_path = os.path.join(ParameterHandler.get_params()["clusterpath"], "spf_datasets/")
+            train_file = f'train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
+            val_file = f'val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
+            with open(os.path.join(cluster_path, train_file), 'wb') as f:
+                np.save(f, train_dat)
+            with open(os.path.join(cluster_path, val_file), 'wb') as f:
+                np.save(f, val_dat)
+        else:
+            with open(f'spf_datasets/train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat', 'wb') as f:
+                np.save(f, train_dat)
+            with open(f'spf_datasets/val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat', 'wb') as f:
+                np.save(f, val_dat)
         
         if self.parameterHandler.get_verbose:
             print("*"*40)
@@ -426,11 +535,18 @@ def main(paramsDefaultDict):
     )
     specfuncs = spectral_functions(omega, parameterHandler.get_params()["extractedQuantity"])
     corrs = correlators(parameterHandler)
-    createdataset = create_datset(
-        omega, tau, specfuncs, corrs, parameterHandler
-        )
+    if parameterHandler.get_params()["Method"] == "SupervisedNN":
+        createdataset = create_datset(
+            omega, tau, specfuncs, corrs, parameterHandler
+            )
     
-    createdataset.dataset()
+        createdataset.dataset()
+    if parameterHandler.get_params()["Method"] == "KadesFC":
+        createdataset = create_Kades_datset(
+            omega, tau, specfuncs, corrs, parameterHandler
+            )
+        
+        createdataset.dataset()
 
 
 
