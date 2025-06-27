@@ -349,7 +349,6 @@ def KL_kernel_Omega_Vacuum(x,Omega):
     ret[:,Omega==0]=1
     ret=Omega * ret
     ret[:,Omega==0]=0
-    print(ret.shape)
     return np.squeeze(ret)
 
 

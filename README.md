@@ -207,10 +207,9 @@ python neuralFit.py --config params.json --lambda_s 1e-6 3.55323189e-05 3.553231
 ## Known issues
 
 The following issues are known and still need to be fixed/read through.
-- mem needs to be read and tested extensively
-- the gpr part fails in the fredipy package (probably due to the way the kernel is given to the package)
+- gpr fails due due to a matrix which is not positive definite (idk how to fix this)
 - supervised learning might need to be optimized considering the network structure
-- the cluster part has to be adjusted for all users
+- mem needs some work
 
 
 ## Needed Libraries

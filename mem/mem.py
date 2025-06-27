@@ -4,6 +4,8 @@ from scipy.optimize import minimize
 from scipy.optimize import check_grad
 from dataclasses import dataclass, field
 
+import matplotlib.pyplot as plt
+
 import numpy as np
 import json
 import argparse
@@ -132,7 +134,7 @@ class mem:
         stoppingcondition = 100
         mu = 0
         solveccounter = 0
-        stopping_threshhold = 100000000
+        stopping_threshhold = 100000
         while stoppingcondition >= 1e-5:
             G_rho = np.dot(VXi, np.dot(U.T, rho))
             g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr))
@@ -145,8 +147,8 @@ class mem:
             Lambda_safe = np.maximum(Lambda, 1e-4)
             Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma_safe)), P.T))
             Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda_safe)
-            du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
-
+            du = np.dot(np.linalg.inv(Yinv), Yinv_du)
+            #du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
             u += du
 
             stoppingcondition = 2*(np.linalg.norm(-al*np.dot(T, u) - np.dot(T, g)))**2/((np.linalg.norm(-al*np.dot(T, u)) + np.linalg.norm(np.dot(T, g)))**2)
@@ -156,9 +158,14 @@ class mem:
             rho = self.def_model * np.exp(dot_Uu)
 
             solveccounter += 1
-            if solveccounter % 50000 == 0:
+            if solveccounter % 5000 == 0:
                 print("‖g‖:", np.linalg.norm(g), "‖u‖:", np.linalg.norm(u), "‖du‖:", np.linalg.norm(du))
                 print(stoppingcondition)
+                """S = np.sum(rho - self.def_model) - np.nansum(rho*np.log(rho/self.def_model))
+                print(S)
+                plt.plot(self.w, rho)
+                plt.plot(self.w, self.def_model)
+                plt.show()"""
 
             if solveccounter > stopping_threshhold:
                 break
@@ -180,8 +187,8 @@ class mem:
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
             G = Di(kernel, rho[i][:], self.delomega)
             L[i] = 1/2 * np.sum(np.dot((corr - G), np.dot(self.cov_mat_inv, (corr - G))))
-            print(S[i])
-            print(L[i])
+            print("S:",S[i])
+            print("L:",L[i])
             exp[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))) *np.exp(self.alpha[i] * S[i] - L[i])
             print(np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))))
             print(np.exp(self.alpha[i] * S[i] - L[i]))
