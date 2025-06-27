@@ -4,10 +4,10 @@
 
 This python program unifies different methods to extract the spectral function $\rho(\omega)$ (or $\rho(\omega)/\omega$) from a given correlator $D(x)$.
 Namely these methods are:
-- MEM (Maximum entropy method, as in: paper)
-- GPR (Gaussian process regression, as implemented in: fredipy)
-- Supervised machine learning (Novel machine learning technique, extended from the basis of: paper)
-- Unsupervised machine learning (Novel machine learning technique, extended from the basis of: paper)
+- MEM (Maximum entropy method, as in: hep-lat/0011040 or https://doi.org/10.1007/BF02427376)
+- GPR (Gaussian process regression, as implemented in: fredipy, see: https://github.com/JonasTurnwald/fredipy and references therein)
+- Supervised machine learning (Novel machine learning technique, extended from the basis of: https://doi.org/10.1103/PhysRevD.102.096001)
+- Unsupervised machine learning (Novel machine learning technique, extended from the basis of: https://doi.org/10.1103/PhysRevD.106.L051502)
 
 The neural networks are trained to minimize the difference between the output of the neural network and the input correlator, while also penalizing a non-smooth spectral function and large weights in the network.
 

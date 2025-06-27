@@ -30,44 +30,6 @@ class gaussianFit:
         self.variance = gprParameters.variance
         self.lengthscale = gprParameters.lengthscale
         self.optimizer = gprParameters.optimizer
-    
-    def KL_kernel_Position_Vacuum(self, Position, Omega):
-        Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-        ker = np.exp(-Omega * np.abs(Position))
-        return ker
-
-    def KL_kernel_Position_FiniteT(self, Position, Omega):
-        if type(Position) == np.ndarray:
-            print(type(Position))
-            Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-            with np.errstate(divide='ignore'):
-                ker = np.cosh(Omega * (Position-1/(2)*self.Nt)) / np.sinh(Omega*self.Nt/2)
-
-                # set all entries in ker to 1 where Position is modulo 1/T and the entry is nan, because of numerical instability for large Omega
-                ker[np.isnan(ker) & (Position % (self.Nt) == 0)] = 1
-                #set all other nan entries to 0
-                ker[np.isnan(ker)] = 0
-            return ker
-        else:
-            return np.cosh(Omega*(Position - 0.5*self.Nt))/np.sinh(0.5*Omega*self.Nt)
-        #print(ker)
-        #quit()
-
-        
-
-    def KL_kernel_Omega_fin_T(self,x,Omega):
-        ret=self.KL_kernel_Position_FiniteT(x, Omega)
-        ret[:,Omega==0]=1
-        ret=Omega * ret
-        ret[:,Omega==0]=2*1/self.Nt
-        return ret
-    
-    def KL_kernel_Omega_Vacuum(self,x,Omega):
-        ret = self.KL_kernel_Position_Vacuum(x,Omega)
-        ret[:,Omega==0]=1
-        ret=Omega * ret
-        ret[:,Omega==0]=0
-        return ret
 
     def OptimizeKernelParameters(
         self, gp: fp.models.GaussianProcess,
@@ -111,16 +73,16 @@ class gaussianFit:
 
         if extractedQuantity=="RhoOverOmega" and finiteT_kernel:
             integral_op = fp.operators.Integral(
-                self.KL_kernel_Omega_fin_T, integrator)
+                KL_kernel_Omega_fin_T, integrator)
         elif extractedQuantity=="RhoOverOmega" and finiteT_kernel==False:
             integral_op = fp.operators.Integral(
-                self.KL_kernel_Omega_Vacuum, integrator)
+                KL_kernel_Omega_Vacuum, integrator)
         elif extractedQuantity=="Rho" and finiteT_kernel:
             integral_op = fp.operators.Integral(
-                self.KL_kernel_Position_FiniteT, integrator)
+                KL_kernel_Position_FiniteT, integrator)
         elif extractedQuantity=="Rho" and finiteT_kernel==False:
             integral_op = fp.operators.Integral(
-                self.KL_kernel_Position_Vacuum, integrator)
+                KL_kernel_Position_Vacuum, integrator)
         else:
             raise ValueError("Invalid choice spectral function target")
         
@@ -130,10 +92,8 @@ class gaussianFit:
             if verbose:
                 print("Optimizing Kernel Parameters...")
             self.OptimizeKernelParameters(model, [self.variance, self.lengthscale])
-    
+
         res, res_err = model.predict(omega)
-    
-        quit()
         return res, res_err
 
 class ParameterHandler:
@@ -336,6 +296,9 @@ def main(paramsDefaultDict):
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)
     parameterHandler.load_params(args.config, args)
+    
+    global Nt
+    Nt = parameterHandler.get_params()["Nt"]
 
     if parameterHandler.get_verbose():
         print("*"*40)
@@ -353,13 +316,47 @@ def main(paramsDefaultDict):
         error = None
     fitRunner.save_results(mean,error,samples)
 
+def KL_kernel_Position_Vacuum(Position, Omega):
+    Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
+    ker = np.exp(-Omega * np.abs(Position))
+    return ker
+
+def KL_kernel_Position_FiniteT(Position, Omega):
+    if type(Position) == np.ndarray:
+        print(type(Position))
+        Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
+        with np.errstate(divide='ignore'):
+            ker = np.cosh(Omega * (Position-1/(2)*Nt)) / np.sinh(Omega*Nt/2)
+
+            # set all entries in ker to 1 where Position is modulo 1/T and the entry is nan, because of numerical instability for large Omega
+            ker[np.isnan(ker) & (Position % (Nt) == 0)] = 1
+            #set all other nan entries to 0
+            ker[np.isnan(ker)] = 0
+        return ker
+    else:
+        return np.cosh(Omega*(Position - 0.5*Nt))/np.sinh(0.5*Omega*Nt)
+
+def KL_kernel_Omega_fin_T(x,Omega):
+    ret=KL_kernel_Position_FiniteT(x, Omega)
+    ret[:,Omega==0]=1
+    ret=Omega * ret
+    ret[:,Omega==0]=2*1/Nt
+    return ret
+
+def KL_kernel_Omega_Vacuum(x,Omega):
+    ret = KL_kernel_Position_Vacuum(x,Omega)
+    ret[:,Omega==0]=1
+    ret=Omega * ret
+    ret[:,Omega==0]=0
+    return ret
+
+
 paramsDefaultDict = {
     "Method": "Gaussian",
     #Gaussian specific
     "optimizer": False,
     "variance": 0.3,
     "lengthscale": 0.4,
-    #working on MEM specific later
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,

@@ -551,16 +551,13 @@ class FitRunner:
         self.parameterHandler = parameterHandler
         self.net_params = self.parameterHandler.getNetworkParams()
         self.fitter = supervisedFit(self.net_params)
-        self.x = np.linspace(0, parameterHandler.get_params()["Nt"], parameterHandler.get_params()["Nt"])
-        self.error = np.random.normal(loc = 0.0, scale= 10e-4, size = (100))
-        self.mean, self.correlators = np.zeros((100)), np.zeros((100))
-        """self.x, self.mean, self.error, self.correlators = self.extractColumns(
+        self.x, self.mean, self.error, self.correlators = self.extractColumns(
             self.parameterHandler.get_correlator_file(),
             self.parameterHandler.get_params()["xCol"],
             self.parameterHandler.get_params()["meanCol"],
             self.parameterHandler.get_params()["errorCol"],
             self.parameterHandler.get_correlator_cols()
-        )"""
+        )
         self.omega = np.linspace(
             self.parameterHandler.get_params()["omega_min"],
             self.parameterHandler.get_params()["omega_max"],

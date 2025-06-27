@@ -497,7 +497,6 @@ def main(paramsDefaultDict):
 
     
 paramsDefaultDict = {
-    #choice of SupervisedNN, UnsupervisedNN, Gaussian, MEM
     "Method": "MEM",
     #MEM specific; default model: choose from quadratic, constant currently (ai to be implemented)
     #should not give 0 as a minimum for alpha, just a small value

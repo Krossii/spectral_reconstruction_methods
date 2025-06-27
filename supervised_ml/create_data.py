@@ -551,7 +551,6 @@ def main(paramsDefaultDict):
 
 
 paramsDefaultDict = {
-    #choice of SupervisedNN, UnsupervisedNN, Gaussian, MEM
     "Method": "UnsupervisedNN",
     #NetworkParams (Ai specrec)
     "lambda_s": [1e-5],
@@ -571,7 +570,6 @@ paramsDefaultDict = {
     "optimizer": False,
     "variance": 0.3,
     "lengthscale": 0.4,
-    #working on MEM specific later
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,

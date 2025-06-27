@@ -2,5 +2,6 @@ venv/
 supervised_ml/spf_datasets/train*
 supervised_ml/spf_datasets/val*
 supervised_ml/supervisedNN*
+supervised_ml/KadesFC*
 params.json
 outputs/
