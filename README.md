@@ -99,10 +99,10 @@ The following parameters can be specified in the JSON file or as command line ar
 | Parameter            | Default          | Possible Values | Purpose/Comment |
 |----------------------|------------------|------------------------------------------------------|------|
 | **Method**           | `"UnsupervisedNN"`   | `"UnsupervisedNN"`, `"SupervisedNN"`,`"MEM"`,`"Gaussian"`  | Method to use. |
-| **lambda_s**         | `[1e-5]`         | List of any floats (e.g., `1e-5`) | Coupling for the smoothness loss contribution for each stage of training |
-| **lambda_l2**        | `[1e-8]`         | List of any floats                | Coupling for the L2 loss contribution for each stage of training |
-| **epochs**           | `[100]`          | List of positive integers         | Number of epochs for each stage of training |
-| **learning_rate**    | `[1e-4]`         | List of positive floats float     | Learning rate for each stage of training |
+| **lambda_s**         | `[1e-5]`         | Any float                | Coupling for the smoothness loss contribution |
+| **lambda_l2**        | `[1e-8]`         | Any float                | Coupling for the L2 loss contribution |
+| **epochs**           | `[100]`          | Any integer                 | Number of epochs |
+| **learning_rate**    | `[1e-4]`         | Any float               | Learning rate  |
 | **errorWeighting**   | `True`           | `True`, `False`                   | Use error weighting for the correlator loss |
 | **width**            | `[32, 32, 32]`   | List of integers                  | Specific to `"UnsupervisedNN"`: Structure of the neural network. The length of the list sets the number of layers, while the values set the widths of the layers.  |
 | **batch_size**        | `128`              | Any integer                         | Specific to `"SupervisedNN"`: The batch size for the training and validation sets. |

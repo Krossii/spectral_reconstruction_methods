@@ -61,7 +61,7 @@ class gaussianFit:
             extractedQuantity: str = "RhoOverOmega", 
             verbose: bool = True
             ) -> np.ndarray:
-        
+
         data = {
             'x': x,
             'y': correlator,
@@ -319,11 +319,10 @@ def main(paramsDefaultDict):
 def KL_kernel_Position_Vacuum(Position, Omega):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     ker = np.exp(-Omega * np.abs(Position))
-    return ker
+    return np.squeeze(ker)
 
 def KL_kernel_Position_FiniteT(Position, Omega):
     if type(Position) == np.ndarray:
-        print(type(Position))
         Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
         with np.errstate(divide='ignore'):
             ker = np.cosh(Omega * (Position-1/(2)*Nt)) / np.sinh(Omega*Nt/2)
@@ -332,23 +331,26 @@ def KL_kernel_Position_FiniteT(Position, Omega):
             ker[np.isnan(ker) & (Position % (Nt) == 0)] = 1
             #set all other nan entries to 0
             ker[np.isnan(ker)] = 0
-        return ker
+        return np.squeeze(ker)
     else:
         return np.cosh(Omega*(Position - 0.5*Nt))/np.sinh(0.5*Omega*Nt)
 
 def KL_kernel_Omega_fin_T(x,Omega):
     ret=KL_kernel_Position_FiniteT(x, Omega)
+    ret=np.expand_dims(ret, axis=1)
     ret[:,Omega==0]=1
     ret=Omega * ret
     ret[:,Omega==0]=2*1/Nt
-    return ret
+    return np.squeeze(ret)
 
 def KL_kernel_Omega_Vacuum(x,Omega):
     ret = KL_kernel_Position_Vacuum(x,Omega)
+    ret=np.expand_dims(ret, axis=1)
     ret[:,Omega==0]=1
     ret=Omega * ret
     ret[:,Omega==0]=0
-    return ret
+    print(ret.shape)
+    return np.squeeze(ret)
 
 
 paramsDefaultDict = {
