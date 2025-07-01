@@ -407,12 +407,12 @@ class supervisedFit:
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
         del_omega = omega[1] - omega[0]
         errorWeight = error if self.errorWeighting else np.ones(len(x))
-
+        
         if self.networkStructure == "SupervisedNN":
             model = SupervisedNN(num_output_nodes=len(omega))
         if self.networkStructure == "KadesFC":
             model = KadesFC(num_output_nodes=len(omega))
-        else:
+        if self.networkStructure != "SupervisedNN" and self.networkStructure != "KadesFC":
             raise ValueError("Invalid choice of network")
         
         optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)

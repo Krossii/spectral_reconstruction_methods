@@ -187,11 +187,11 @@ class mem:
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
             G = Di(kernel, rho[i][:], self.delomega)
             L[i] = 1/2 * np.sum(np.dot((corr - G), np.dot(self.cov_mat_inv, (corr - G))))
-            print("S:",S[i])
-            print("L:",L[i])
             exp[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))) *np.exp(self.alpha[i] * S[i] - L[i])
-            print(np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))))
-            print(np.exp(self.alpha[i] * S[i] - L[i]))
+            #print(np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))))
+            #print(np.exp(self.alpha[i] * S[i] - L[i]))
+        print("S:",S)
+        print("L:",L)
         P_alphaDHM = P_alphaHM * exp
 
         alpha_ind = []

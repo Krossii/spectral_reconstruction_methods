@@ -223,9 +223,9 @@ class create_datset:
 
     def breit_wigners(self):
         one_dat = []
-        A = np.linspace(0.1/3, 0.5/3, 5)
-        M = np.linspace(0.5/3, 1.0, 5)
-        G = np.linspace(0.1/3, 0.4/3, 5)
+        A = np.linspace(0.1, 0.5, 10)
+        M = np.linspace(0.5, 3.0, 10)
+        G = np.linspace(0.1, 0.4, 10)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -247,11 +247,11 @@ class create_datset:
         
         mult_dat = []
         A, M, G = [],[],[]
-        for i in range(5):
-            for j in range(5):
-                A.append([0.1/3 + i/(3*5), 0.1/3 + j/(3*5)])
-                M.append([0.5/3 + i*1.0/5, 0.5/3 + j*1.0/5])
-                G.append([0.1/3 + i * 0.4/(3*5), 0.1/3 + j*0.4/(3*5)])
+        for i in range(7):
+            for j in range(7):
+                A.append([0.1 + i*0.5/7, 0.1 + j*0.5/7])
+                M.append([0.5 + i*3.0/7, 0.5 + j*3.0/7])
+                G.append([0.1 + i * 0.4/7, 0.1 + j*0.4/7])
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating double peaked Breit Wigner.")
@@ -362,7 +362,7 @@ class create_datset:
         for i in range(len(full_set)):
             if i in integers_split: val_dat.append(full_set[i])
             else: train_dat.append(full_set[i])
-        if ParameterHandler.get_params()["cluster"]:
+        if self.parameterHandler.get_params()["cluster"]:
             cluster_path = os.path.join(ParameterHandler.get_params()["clusterpath"], "spf_datasets/")
             train_file = f'train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
             val_file = f'val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
