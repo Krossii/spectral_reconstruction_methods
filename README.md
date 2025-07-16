@@ -207,8 +207,15 @@ python neuralFit.py --config params.json --lambda_s 1e-6 3.55323189e-05 3.553231
 ## Known issues
 
 The following issues are known and still need to be fixed/read through.
+- supervised learning is not working at all at the moment. There appears to be some bug. What I have tried:
+- reduced the training set to only one spectral function to see if the model is overfitting this one - no it isnt
+- it appears to be learning - at least the gradients look reasonable
+- the network structure seems to be big enough now - I experimented with more/less neurons and more/less layers.
+- the weighing of the error of the correlator in the custom loss has some influence but this is not the main problem
+
+
+- I added a small wrapper for the raytune library - this is not finished though
 - gpr fails due due to a matrix which is not positive definite (idk how to fix this)
-- supervised learning might need to be optimized considering the network structure
 - mem needs some work
 
 

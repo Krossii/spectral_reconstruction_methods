@@ -1,4 +1,5 @@
 import pickle
+import matplotlib.pyplot as plt
 
 import numpy as np
 import json
@@ -223,9 +224,9 @@ class create_datset:
 
     def breit_wigners(self):
         one_dat = []
-        A = np.linspace(0.1, 0.5, 10)
+        A = np.linspace(0.1, 0.7, 10)
         M = np.linspace(0.5, 3.0, 10)
-        G = np.linspace(0.1, 0.4, 10)
+        G = np.linspace(0.3, 0.8, 10)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -235,6 +236,8 @@ class create_datset:
                     rho = self.breit_wigner(self.w, A[i], M[j], G[k])
                     normalizing_fac = np.trapezoid(rho, self.w)
                     normed_rho = rho/normalizing_fac
+                    if np.max(normed_rho) >= 5:
+                        print(A[i], M[j], G[k])
                     corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
                     if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
@@ -247,21 +250,24 @@ class create_datset:
         
         mult_dat = []
         A, M, G = [],[],[]
-        for i in range(7):
-            for j in range(7):
-                A.append([0.1 + i*0.5/7, 0.1 + j*0.5/7])
-                M.append([0.5 + i*3.0/7, 0.5 + j*3.0/7])
-                G.append([0.1 + i * 0.4/7, 0.1 + j*0.4/7])
+        N_params = 5
+        for i in range(N_params):
+            for j in range(N_params):
+                A.append([0.1 + i*0.7/N_params, 0.1 + j*0.7/N_params])
+                M.append([0.5 + i*3.0/N_params, 0.5 + j*3.0/N_params])
+                G.append([0.3 + i * 0.8/N_params, 0.3 + j*0.8/N_params])
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating double peaked Breit Wigner.")
 
-        for i in range(5**2):
-            for j in range(5**2):
-                for k in range(5**2):
+        for i in range(N_params**2):
+            for j in range(N_params**2):
+                for k in range(N_params**2):
                     rho = self.mbreit_wigner(self.w, A[i][:], M[j][:], G[k][:])
                     normalizing_fac = np.trapezoid(rho, self.w)
-                    normed_rho = rho/normalizing_fac
+                    normed_rho = rho/normalizing_fac                    
+                    if np.max(normed_rho) >= 5:
+                        print(A[i][:], M[j][:], G[k][:])
                     corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
                     if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
@@ -348,13 +354,14 @@ class create_datset:
             print("Creating the datasets.")
         bw, mbw = self.breit_wigners()
         nonz = self.non_zeros()
-        #steps = self.steps()
+        steps = self.steps()
         peaks = self.peaks()
 
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Splitting into test and validation sets.")
-        full_set = bw + mbw + nonz + peaks #+ steps
+        full_set = bw + mbw + nonz + peaks + steps
+        print(len(full_set))
         train_dat = []
         val_dat = []
         integers_split = np.random.randint(
@@ -362,23 +369,23 @@ class create_datset:
         for i in range(len(full_set)):
             if i in integers_split: val_dat.append(full_set[i])
             else: train_dat.append(full_set[i])
+        train_file = f'train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
+        val_file = f'val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
         if self.parameterHandler.get_params()["cluster"]:
             cluster_path = os.path.join(ParameterHandler.get_params()["clusterpath"], "spf_datasets/")
-            train_file = f'train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
-            val_file = f'val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
             with open(os.path.join(cluster_path, train_file), 'wb') as f:
                 np.save(f, train_dat)
             with open(os.path.join(cluster_path, val_file), 'wb') as f:
                 np.save(f, val_dat)
         else:
-            with open(f'spf_datasets/train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat', 'wb') as f:
+            with open(os.path.join("spf_datasets/", train_file), 'wb') as f:
                 np.save(f, train_dat)
-            with open(f'spf_datasets/val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat', 'wb') as f:
+            with open(os.path.join("spf_datasets/", val_file), 'wb') as f:
                 np.save(f, val_dat)
         
         if self.parameterHandler.get_verbose:
             print("*"*40)
-            print("Files created.")
+            print("Files created at:", train_file)
 
 class create_Kades_datset:
     def __init__(self, w: np.ndarray, tau: np.ndarray, specfuncs: spectral_functions,
@@ -455,6 +462,7 @@ class create_Kades_datset:
             print("*"*40)
             print("Splitting into test and validation sets.")
         full_set = bw + mbw
+        print(len(full_set))
         train_dat = []
         val_dat = []
         integers_split = np.random.randint(
@@ -462,7 +470,7 @@ class create_Kades_datset:
         for i in range(len(full_set)):
             if i in integers_split: val_dat.append(full_set[i])
             else: train_dat.append(full_set[i])
-        if ParameterHandler.get_params()["cluster"]:
+        if self.parameterHandler.get_params()["cluster"]:
             cluster_path = os.path.join(ParameterHandler.get_params()["clusterpath"], "spf_datasets/")
             train_file = f'train_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
             val_file = f'val_dat_{self.parameterHandler.get_params()["Nt"]}_{len(self.w)}_{self.parameterHandler.get_params()["extractedQuantity"]}_{self.parameterHandler.get_params()["data_noise"]}_{self.parameterHandler.get_params()["Method"]}.dat'
@@ -589,8 +597,9 @@ paramsDefaultDict = {
     "saveLossHistory": False,
     "verbose": False,
     "outputFile": "",
-    "outputDir": ""
-
+    "outputDir": "",
+    "cluster": False,
+    "clusterpath": ""
 }
 
 

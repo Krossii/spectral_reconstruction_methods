@@ -109,7 +109,7 @@ class mem:
     def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         V, xi, U = np.linalg.svd(kernel, full_matrices=False)
         U= U.T
-        xi = np.array(list(itertools.takewhile(lambda x: x > 1e-10, xi)))
+        xi = np.array(list(itertools.takewhile(lambda x: x > 1e-6, xi)))
         s = xi.size
         V = V[:,:s]
         U = U[:,:s]
@@ -147,25 +147,30 @@ class mem:
             Lambda_safe = np.maximum(Lambda, 1e-4)
             Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma_safe)), P.T))
             Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda_safe)
-            du = np.dot(np.linalg.inv(Yinv), Yinv_du)
-            #du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
+            #du = np.dot(np.linalg.inv(Yinv), Yinv_du)
+            du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
+            S = np.sum(rho - self.def_model) - np.nansum(rho*np.dot(U,u))
             u += du
 
             stoppingcondition = 2*(np.linalg.norm(-al*np.dot(T, u) - np.dot(T, g)))**2/((np.linalg.norm(-al*np.dot(T, u)) + np.linalg.norm(np.dot(T, g)))**2)
-
+            
             dot_Uu = np.dot(U,u)
-            dot_Uu = np.clip(dot_Uu, -50, 50) #safe range for inf/nan values
+            #dot_Uu = np.clip(dot_Uu, -50, 50) #safe range for inf/nan values
+            #if np.any(dot_Uu) == -50 or np.any(dot_Uu) == 50:
+            #    print("clipped dotUu")
             rho = self.def_model * np.exp(dot_Uu)
 
             solveccounter += 1
             if solveccounter % 5000 == 0:
                 print("‖g‖:", np.linalg.norm(g), "‖u‖:", np.linalg.norm(u), "‖du‖:", np.linalg.norm(du))
-                print(stoppingcondition)
-                """S = np.sum(rho - self.def_model) - np.nansum(rho*np.log(rho/self.def_model))
-                print(S)
-                plt.plot(self.w, rho)
-                plt.plot(self.w, self.def_model)
-                plt.show()"""
+                L = 1/2 * np.sum(np.dot(G_rho - corr, self.cov_mat_inv)**2)
+                Q = al*S - L
+                rho_ddu = self.def_model * np.exp(np.dot(U,du))
+                dS = np.sum(rho_ddu-self.def_model) - np.nansum(rho*np.dot(U,du))
+                dL = 1/2 * np.sum(np.dot(np.dot(VXi, np.dot(U.T, rho_ddu)) -corr,self.cov_mat_inv)**2)
+                dQ = al*dS - dL
+                print(abs(dQ/Q))
+
 
             if solveccounter > stopping_threshhold:
                 break
@@ -175,6 +180,10 @@ class mem:
             print("Stoppincondition is nan.")
         else:
             print("No solution found in reasonable time.")
+        
+        """plt.plot(self.w, rho)
+        plt.plot(self.w, self.def_model)
+        plt.show()"""
         return rho
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
@@ -370,7 +379,7 @@ class FitRunner:
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
         self.fitter = mem(
             self.omega, self.alpha, self.default_model, 
-            np.linalg.inv(np.diag(self.error**2)), self.Nt)
+            np.diag(1/self.error**2), self.Nt)
 
     def extractColumns(self, file: str, x_col: int, mean_col: int, error_col: int, correlator_cols: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         data = np.loadtxt(file)

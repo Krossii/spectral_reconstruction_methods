@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import load_model
 from dataclasses import dataclass, field
+import matplotlib.pyplot as plt
 
 import numpy as np
 import json
@@ -102,45 +103,21 @@ class SupervisedNN(tf.keras.Model):
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Layer 1
-        self.hidden_layer1 = tf.keras.layers.Dense(128)
-        self.batchnorm1 = tf.keras.layers.BatchNormalization()
-        self.relu1 = tf.keras.layers.Activation('relu')
-        self.dropout1 = tf.keras.layers.Dropout(0.2)
-
+        self.hidden_layer1 = tf.keras.layers.Dense(int(6700), activation = 'relu')
         # Layer 2
-        self.hidden_layer2 = tf.keras.layers.Dense(256)
-        self.batchnorm2 = tf.keras.layers.BatchNormalization()
-        self.relu2 = tf.keras.layers.Activation('relu')
-        self.dropout2 = tf.keras.layers.Dropout(0.2)
-
+        self.hidden_layer2 = tf.keras.layers.Dense(int(12168), activation = 'relu')
         # Layer 3
-        self.hidden_layer3 = tf.keras.layers.Dense(512)
-        self.batchnorm3 = tf.keras.layers.BatchNormalization()
-        self.relu3 = tf.keras.layers.Activation('relu')
-        self.dropout3 = tf.keras.layers.Dropout(0.2)
-
+        self.hidden_layer3 = tf.keras.layers.Dense(int(6700), activation = 'relu')
+        #Layer 4
+        self.hidden_layer4 = tf.keras.layers.Dense(int(1024), activation = 'relu')
+        ############################ look at the layer outputs maybe? ####################################
         # Output layer
-        self.output_layer = tf.keras.layers.Dense(
-            num_output_nodes,
-            activation='softplus'
-        )
+        self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'relu')
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
         x = self.hidden_layer1(inputs)
-        x = self.batchnorm1(x)
-        x = self.relu1(x)
-        x = self.dropout1(x)
-
         x = self.hidden_layer2(x)
-        x = self.batchnorm2(x)
-        x = self.relu2(x)
-        x = self.dropout2(x)
-
         x = self.hidden_layer3(x)
-        x = self.batchnorm3(x)
-        x = self.relu3(x)
-        x = self.dropout3(x)
-
         return self.output_layer(x)
     
     def get_config(self):
@@ -190,33 +167,25 @@ class LossCalculator:
     def smoothness_loss(
             self, rho: tf.Tensor = None
             ) -> tf.Tensor:
-        if rho is None:
-            rho = self.model(self.y_true)
         return tf.reduce_sum(tf.square(rho[:, 1:] - rho[:, :-1]))
     
     def custom_loss(
             self, y_pred: tf.Tensor, weighting: tf.Tensor, 
             y_true: tf.Tensor = None
             ) -> tf.Tensor:
-        if y_true is None:
-            y_true = self.y_true
+        assert y_pred.shape == y_true.shape == weighting.shape, "Shape mismatch in loss calculation"
         weighting = tf.cast(weighting, dtype=tf.float32)
         y_true = tf.cast(y_true, dtype=tf.float32)
         y_pred = tf.cast(y_pred, dtype=tf.float32)
-        chi_squared = tf.square((y_true - y_pred) / weighting)
+        chi_squared = tf.square((y_true - y_pred)/ weighting)
         return tf.reduce_mean(chi_squared)
     
     def total_loss(
-            self, epoch: int, y_pred: tf.Tensor = None, 
-            rho: tf.Tensor = None, y_true: tf.Tensor = None,
-            err: tf.Tensor = None
+            self, epoch: int,
+            rho: tf.Tensor, y_true: tf.Tensor,
+            err: tf.Tensor, y_pred: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
-        if y_true is None:
-            y_true = self.y_true
-        if rho is None:
-            rho = self.model(y_true)
-        if y_pred is None:
-            y_pred = Di(self.kernel, rho, self.delomega)
+        y_pred = Di(self.kernel, rho, self.delomega)
         main_loss = self.custom_loss(y_pred, err, y_true)
         smooth_loss = self.smoothness_loss(rho)
         l2_loss = self.l2_regularization()
@@ -237,8 +206,8 @@ class networkTrainer:
             self, epoch:int, corr: tf.Tensor, err: tf.Tensor
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
-            total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, y_true = corr, err=err)
-
+            rho = self.model(corr)
+            total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err=err)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))    
@@ -247,7 +216,8 @@ class networkTrainer:
     def test_step(
             self, epoch: int, corr: tf.Tensor, err: tf.Tensor
         ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
-        total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, y_true = corr, err= err)
+        rho = self.model(corr)
+        total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err= err)
         return total_loss_value, individual_losses
 
     def trainloop(
@@ -261,9 +231,21 @@ class networkTrainer:
             train_losses.append(total_loss_value)
             train_losses_ind.append(individual_losses)
             if verbose and step % 200 == 0:
-                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}')
-            if step >= len(dat):
-                break
+                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0].numpy()}, smooth: {individual_losses[1].numpy()}, l2: {individual_losses[2].numpy()}')
+            
+            """if epoch % 10 == 0:
+                rho = self.model(y)
+                w = np.linspace(0,5,20)
+                tau = np.linspace(0,64,64)
+                G_pred = Di(KL_kernel_Omega(KL_kernel_Position_FiniteT,tau, w, args= [1/64]), rho, w[1]-w[0])
+                plt.figure(1)
+                plt.plot(w, rho[0][:])
+                plt.plot(w, X[0][:])
+                plt.figure(2)
+                plt.errorbar(tau, y[0][:], abs(z[0][:])/2, marker = "x")
+                plt.scatter(tau, G_pred)
+                plt.yscale("log")
+                plt.show()"""
         return train_losses, train_losses_ind
 
     def testloop(
