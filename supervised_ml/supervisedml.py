@@ -32,7 +32,6 @@ def KL_kernel_Position_FiniteT(Position, Omega,T):
         ker[np.isnan(ker) & (Position % (1/T) == 0)] = 1
         #set all other nan entries to 0
         ker[np.isnan(ker)] = 0
-
     return ker
 
 def KL_kernel_Omega(KL,x,Omega,args=[]):
@@ -53,7 +52,7 @@ def Di(KL, rhoi, delomega):
     delomega = tf.cast(delomega, dtype=tf.float32)  # Cast delomega to float32
 
     # Perform matrix multiplication
-    dis = tf.matmul(KL, rhoi, transpose_b = True)  # Shape will be [Nt, batch_size]
+    dis = tf.matmul(KL, rhoi, transpose_b=True)  # Shape will be [Nt, batch_size]
     dis = tf.transpose(dis) #transpose to [batch_size, Nt]
     dis = dis * delomega  # Multiply by delomega
     return dis
@@ -107,12 +106,9 @@ class SupervisedNN(tf.keras.Model):
         # Layer 2
         self.hidden_layer2 = tf.keras.layers.Dense(int(12168), activation = 'relu')
         # Layer 3
-        self.hidden_layer3 = tf.keras.layers.Dense(int(6700), activation = 'relu')
-        #Layer 4
-        self.hidden_layer4 = tf.keras.layers.Dense(int(1024), activation = 'relu')
-        ############################ look at the layer outputs maybe? ####################################
+        self.hidden_layer3 = tf.keras.layers.Dense(int(1024), activation = 'relu')
         # Output layer
-        self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'relu')
+        self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'softplus')
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
         x = self.hidden_layer1(inputs)
@@ -140,7 +136,6 @@ class LossCalculator:
                  ):
         
         self.model = model
-        self.y_true = y_true
         self.std = std
         if self.std is None:
             self.std = tf.constant(1.0, dtype=tf.float32)
@@ -230,20 +225,19 @@ class networkTrainer:
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z)
             train_losses.append(total_loss_value)
             train_losses_ind.append(individual_losses)
-            if verbose and step % 200 == 0:
+            if verbose and step % 50 == 0:
                 print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0].numpy()}, smooth: {individual_losses[1].numpy()}, l2: {individual_losses[2].numpy()}')
-            
-            """if epoch % 10 == 0:
+            """if epoch == 600 or epoch == 690:
                 rho = self.model(y)
-                w = np.linspace(0,5,20)
-                tau = np.linspace(0,64,64)
-                G_pred = Di(KL_kernel_Omega(KL_kernel_Position_FiniteT,tau, w, args= [1/64]), rho, w[1]-w[0])
+                w = np.linspace(0,5,500)
+                tau = np.arange(16)
+                G_pred = Di(KL_kernel_Omega(KL_kernel_Position_FiniteT,tau, w, args= [1/16]), rho, w[1]-w[0])
                 plt.figure(1)
                 plt.plot(w, rho[0][:])
                 plt.plot(w, X[0][:])
                 plt.figure(2)
                 plt.errorbar(tau, y[0][:], abs(z[0][:])/2, marker = "x")
-                plt.scatter(tau, G_pred)
+                plt.scatter(tau, G_pred[0][:])
                 plt.yscale("log")
                 plt.show()"""
         return train_losses, train_losses_ind
@@ -257,8 +251,8 @@ class networkTrainer:
             total_loss_value, individual_losses = self.test_step(epoch, corr=y, err=z)
             test_losses.append(total_loss_value)
             test_losses_ind.append(individual_losses)
-        if verbose:
-            print(f'Validation loss: {total_loss_value}')
+        #if verbose:
+        #    print(f'Validation loss: {total_loss_value}')
         return test_losses, test_losses_ind
 
 
@@ -372,7 +366,7 @@ class supervisedFit:
             lambda_s_func=lambda x: self.lambda_s[0],
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
-        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0])
         trainer = networkTrainer(model, optimizer, lossCalc)
         total_loss, individual_loss = trainer.test_step(0, correlator, error)
         spectralFunction = model(correlator)
@@ -427,8 +421,8 @@ class supervisedFit:
         validation_dat_errs = tf.data.Dataset.from_tensor_slices([d['noise'] for d in validation_raw])
         validation_dat = tf.data.Dataset.zip((validation_dat_fcts, validation_dat_corrs, validation_dat_errs))
     
-        train_dat = train_dat.shuffle(1000).batch(self.batch_size).prefetch(tf.data.AUTOTUNE)
-        validation_dat = validation_dat.shuffle(1000).batch(self.batch_size).prefetch(tf.data.AUTOTUNE)
+        train_dat = train_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
+        validation_dat = validation_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
         #maybe as a to do: checkpointing
         trainer = networkTrainer(model, optimizer, lossCalc)
         for lambda_s, lambda_l2, learning_rate, epochs in zip(self.lambda_s, self.lambda_l2, self.learning_rate, self.epochs):
