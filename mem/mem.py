@@ -155,9 +155,6 @@ class mem:
             stoppingcondition = 2*(np.linalg.norm(-al*np.dot(T, u) - np.dot(T, g)))**2/((np.linalg.norm(-al*np.dot(T, u)) + np.linalg.norm(np.dot(T, g)))**2)
             
             dot_Uu = np.dot(U,u)
-            #dot_Uu = np.clip(dot_Uu, -50, 50) #safe range for inf/nan values
-            #if np.any(dot_Uu) == -50 or np.any(dot_Uu) == 50:
-            #    print("clipped dotUu")
             rho = self.def_model * np.exp(dot_Uu)
 
             solveccounter += 1

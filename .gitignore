@@ -6,3 +6,4 @@ supervised_ml/SupervisedNN*
 supervised_ml/KadesFC*
 params.json
 outputs/
+min_ex.py

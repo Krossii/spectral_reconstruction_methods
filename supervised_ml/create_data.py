@@ -25,7 +25,6 @@ def KL_kernel_Position_FiniteT(Position, Omega,T):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     with np.errstate(divide='ignore'):
         ker = np.cosh(Omega * (Position-1/(2*T))) / np.sinh(Omega/2/T)
-
         # set all entries in ker to 1 where Position is modulo 1/T and the entry is nan, because of numerical instability for large Omega
         ker[np.isnan(ker) & (Position % (1/T) == 0)] = 1
         #set all other nan entries to 0
@@ -55,7 +54,6 @@ def Di(KL, rhoi, delomega):
     # Perform matrix multiplication
     dis = np.matmul(KL, rhoi)  # Shape will be [25, 1]
     dis = np.squeeze(dis, axis=-1)  # Remove the singleton dimension to get [25]
-    
     dis = dis * delomega  # Multiply by delomega
     return dis
 
@@ -224,9 +222,9 @@ class create_datset:
 
     def breit_wigners(self):
         one_dat = []
-        A = np.linspace(0.1, 0.7, 10)
-        M = np.linspace(0.5, 3.0, 10)
-        G = np.linspace(0.3, 0.8, 10)
+        A = np.linspace(0.1, 0.7, 20)
+        M = np.linspace(0.5, 3.0, 20)
+        G = np.linspace(0.3, 0.8, 20)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -250,7 +248,7 @@ class create_datset:
         
         mult_dat = []
         A, M, G = [],[],[]
-        N_params = 5
+        N_params = 1
         for i in range(N_params):
             for j in range(N_params):
                 A.append([0.1 + i*0.7/N_params, 0.1 + j*0.7/N_params])
@@ -353,14 +351,14 @@ class create_datset:
             print("*"*40)
             print("Creating the datasets.")
         bw, mbw = self.breit_wigners()
-        nonz = self.non_zeros()
-        steps = self.steps()
-        peaks = self.peaks()
+        #nonz = self.non_zeros()
+        #steps = self.steps()
+        #peaks = self.peaks()
 
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Splitting into test and validation sets.")
-        full_set = bw + mbw + nonz + peaks + steps
+        full_set = bw #+ mbw + nonz + peaks + steps
         print(len(full_set))
         train_dat = []
         val_dat = []
@@ -536,11 +534,7 @@ def main(paramsDefaultDict):
         parameterHandler.get_params()["omega_max"],
         parameterHandler.get_params()["omega_points"]
     )
-    tau = np.linspace(
-        0, 
-        parameterHandler.get_params()["Nt"], 
-        parameterHandler.get_params()["Nt"]
-    )
+    tau = np.arange(parameterHandler.get_params()["Nt"])
     specfuncs = spectral_functions(omega, parameterHandler.get_params()["extractedQuantity"])
     corrs = correlators(parameterHandler)
     if parameterHandler.get_params()["Method"] == "SupervisedNN":
