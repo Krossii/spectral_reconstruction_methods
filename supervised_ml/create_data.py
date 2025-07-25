@@ -222,9 +222,9 @@ class create_datset:
 
     def breit_wigners(self):
         one_dat = []
-        A = np.linspace(0.1, 0.7, 20)
-        M = np.linspace(0.5, 3.0, 20)
-        G = np.linspace(0.3, 0.8, 20)
+        A = np.linspace(0.1, 0.7, 30)
+        M = np.linspace(0.5, 3.0, 30)
+        G = np.linspace(0.3, 0.8, 30)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")

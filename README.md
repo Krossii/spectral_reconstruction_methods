@@ -195,23 +195,19 @@ Create a JSON file (e.g., `params.json`):
 
 Run the program with the JSON file:
 ```bash
-python neuralFit.py --config params.json
+python reconstruction.py --config params.json
 ```
 ### Command Line
 
 Run the program with command line arguments:
 ```bash
-python neuralFit.py --config params.json --lambda_s 1e-6 3.55323189e-05 3.55323189e-05 --lambda_l2 1e-4 6.66754659e-08 6.66754659e-08 --epochs 2000 90000 10000 --learning_rate 1e-3 1e-4 1e-5 --errorWeighting true --networkStructure SpectralNN --omega_min 0 --omega_max 10 --omega_points 500 --Nt 16 --extractedQuantity RhoOverOmega --FiniteT_kernel true --multiFit false --correlatorFile correlator.txt --xCol 0 --meanCol 1 --errorCol 2 --correlatorCols "" --errormethod jackknife --saveParams true --saveLossHistory true --verbose true --outputFile null --outputDir ""
+python reconstruction.py --config params.json --lambda_s 1e-6 3.55323189e-05 3.55323189e-05 --lambda_l2 1e-4 6.66754659e-08 6.66754659e-08 --epochs 2000 90000 10000 --learning_rate 1e-3 1e-4 1e-5 --errorWeighting true --networkStructure SpectralNN --omega_min 0 --omega_max 10 --omega_points 500 --Nt 16 --extractedQuantity RhoOverOmega --FiniteT_kernel true --multiFit false --correlatorFile correlator.txt --xCol 0 --meanCol 1 --errorCol 2 --correlatorCols "" --errormethod jackknife --saveParams true --saveLossHistory true --verbose true --outputFile null --outputDir ""
 ```
 
 ## Known issues
 
 The following issues are known and still need to be fixed/read through.
-- supervised learning is not working at all at the moment. There appears to be some bug. What I have tried:
-- reduced the training set to only one spectral function to see if the model is overfitting this one - no it isnt
-- it appears to be learning - at least the gradients look reasonable
-- the network structure seems to be big enough now - I experimented with more/less neurons and more/less layers.
-- the weighing of the error of the correlator in the custom loss has some influence but this is not the main problem
+-supervised appears to be running now on a very ideal dataset. Still one should check a histogram of the weights to see if there are unused neurons 
 
 
 - I experienced some issues with my compiler crashing while running supervised learning for about 3000-5000 epochs. It might be useful to check this on a different machine to see if this issue persists.

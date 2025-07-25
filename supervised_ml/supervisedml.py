@@ -102,11 +102,11 @@ class SupervisedNN(tf.keras.Model):
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Layer 1
-        self.hidden_layer1 = tf.keras.layers.Dense(int(6700), activation = 'relu')
+        self.hidden_layer1 = tf.keras.layers.Dense(int(512), activation = 'elu')
         # Layer 2
-        self.hidden_layer2 = tf.keras.layers.Dense(int(12168), activation = 'relu')
+        self.hidden_layer2 = tf.keras.layers.Dense(int(1024), activation = 'elu')
         # Layer 3
-        self.hidden_layer3 = tf.keras.layers.Dense(int(1024), activation = 'relu')
+        self.hidden_layer3 = tf.keras.layers.Dense(int(2048), activation = 'elu')
         # Output layer
         self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'softplus')
 
@@ -168,10 +168,11 @@ class LossCalculator:
             self, y_pred: tf.Tensor, weighting: tf.Tensor, 
             y_true: tf.Tensor = None
             ) -> tf.Tensor:
+        weighting = tf.cast(tf.squeeze(weighting), dtype=tf.float32)
+        y_true = tf.cast(tf.squeeze(y_true), dtype=tf.float32)
+        y_pred = tf.cast(tf.squeeze(y_pred), dtype=tf.float32)
+        weighting /= weighting[0]
         assert y_pred.shape == y_true.shape == weighting.shape, "Shape mismatch in loss calculation"
-        weighting = tf.cast(weighting, dtype=tf.float32)
-        y_true = tf.cast(y_true, dtype=tf.float32)
-        y_pred = tf.cast(y_pred, dtype=tf.float32)
         chi_squared = tf.square((y_true - y_pred)/ weighting)
         return tf.reduce_mean(chi_squared)
     
@@ -227,19 +228,6 @@ class networkTrainer:
             train_losses_ind.append(individual_losses)
             if verbose and step % 50 == 0:
                 print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0].numpy()}, smooth: {individual_losses[1].numpy()}, l2: {individual_losses[2].numpy()}')
-            """if epoch == 600 or epoch == 690:
-                rho = self.model(y)
-                w = np.linspace(0,5,500)
-                tau = np.arange(16)
-                G_pred = Di(KL_kernel_Omega(KL_kernel_Position_FiniteT,tau, w, args= [1/16]), rho, w[1]-w[0])
-                plt.figure(1)
-                plt.plot(w, rho[0][:])
-                plt.plot(w, X[0][:])
-                plt.figure(2)
-                plt.errorbar(tau, y[0][:], abs(z[0][:])/2, marker = "x")
-                plt.scatter(tau, G_pred[0][:])
-                plt.yscale("log")
-                plt.show()"""
         return train_losses, train_losses_ind
 
     def testloop(
@@ -251,8 +239,8 @@ class networkTrainer:
             total_loss_value, individual_losses = self.test_step(epoch, corr=y, err=z)
             test_losses.append(total_loss_value)
             test_losses_ind.append(individual_losses)
-        #if verbose:
-        #    print(f'Validation loss: {total_loss_value}')
+        if verbose:
+            print(f'Validation loss: {total_loss_value}')
         return test_losses, test_losses_ind
 
 
@@ -274,10 +262,10 @@ class networkTrainer:
                 print(f'\nStart of epoch %d' %(epoch,))
             train_losses, train_losses_ind = self.trainloop(train_dat, epoch, verbose)
             val_losses, val_losses_ind = self.testloop(test_dat, epoch, verbose)
-            t_losses.append(train_losses)
-            t_individual_losses.append(train_losses_ind)
-            v_losses.append(val_losses)
-            v_individual_losses.append(val_losses_ind)
+            t_losses.append(tf.reduce_sum(train_losses))
+            t_individual_losses.append(tf.reduce_sum(train_losses_ind, axis=0))
+            v_losses.append(tf.reduce_sum(val_losses))
+            v_individual_losses.append(tf.reduce_sum(val_losses_ind, axis=0))
 
         return t_losses, t_individual_losses, v_losses, v_individual_losses
     
@@ -619,8 +607,11 @@ class FitRunner:
                 self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, pred_loss_histories, model_name)
         np.array(loss_histories)
         np.array(pred_loss_histories)
-        loss_histories = np.concatenate((np.squeeze(loss_histories), pred_loss_histories), axis= 0)
-        return np.array(results), loss_histories
+        if len(pred_loss_histories) == 0:
+            return np.array(results), np.squeeze(loss_histories)
+        else:
+            loss_histories = np.concatenate((np.squeeze(loss_histories), pred_loss_histories), axis= 0)
+            return np.array(results), loss_histories
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
         N = len(samples)
