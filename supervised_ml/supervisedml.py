@@ -102,11 +102,11 @@ class SupervisedNN(tf.keras.Model):
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Layer 1
-        self.hidden_layer1 = tf.keras.layers.Dense(int(512), activation = 'elu')
+        self.hidden_layer1 = tf.keras.layers.Dense(int(6700), activation = 'elu')
         # Layer 2
-        self.hidden_layer2 = tf.keras.layers.Dense(int(1024), activation = 'elu')
+        self.hidden_layer2 = tf.keras.layers.Dense(int(12168), activation = 'elu')
         # Layer 3
-        self.hidden_layer3 = tf.keras.layers.Dense(int(2048), activation = 'elu')
+        self.hidden_layer3 = tf.keras.layers.Dense(int(1024), activation = 'elu')
         # Output layer
         self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'softplus')
 
@@ -224,10 +224,12 @@ class networkTrainer:
         step = 0
         for step, (X, y, z) in enumerate(dat):
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z)
-            train_losses.append(total_loss_value)
+            train_losses.append(total_loss_value.numpy())
+            for i in range(len(individual_losses)):
+                individual_losses[i] = individual_losses[i].numpy()
             train_losses_ind.append(individual_losses)
             if verbose and step % 50 == 0:
-                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0].numpy()}, smooth: {individual_losses[1].numpy()}, l2: {individual_losses[2].numpy()}')
+                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0]}, smooth: {individual_losses[1]}, l2: {individual_losses[2]}')
         return train_losses, train_losses_ind
 
     def testloop(
@@ -282,17 +284,11 @@ class networkParameters:
     networkStructure: str = ""
 
     def __post_init__(self):
-        # Ensure lambda_s, lambda_l2, epochs, learning_rate are lists of the same length
-        if not (len(self.lambda_s) == len(self.lambda_l2) == len(self.epochs) == len(self.learning_rate)):
-            raise ValueError("lambda_s, lambda_l2, epochs, learning_rate must be lists of the same length.")
-        
         # Ensure all entries in lambda_s, lambda_l2 and learning_rate are floats
         if not all(isinstance(item, float) for item in self.lambda_s):
             raise ValueError("All entries in lambda_s must be floats.")
         if not all(isinstance(item, float) for item in self.lambda_l2):
             raise ValueError("All entries in lambda_l2 must be floats.")
-        if not all(isinstance(item, float) for item in self.learning_rate):
-            raise ValueError("All entries in learning_rate must be floats.")
         
         # Ensure all entries in epochs are integers
         if not all(isinstance(item, int) for item in self.epochs):
@@ -354,7 +350,11 @@ class supervisedFit:
             lambda_s_func=lambda x: self.lambda_s[0],
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
-        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0])
+        if len(self.learning_rate) == 1:
+            lr = self.learning_rate[0]
+        else:
+            lr = tf.keras.optimizers.schedules.PolynomialDecay(self.learning_rate[0], self.learning_rate[2], self.learning_rate[1], power=0.5)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
         trainer = networkTrainer(model, optimizer, lossCalc)
         total_loss, individual_loss = trainer.test_step(0, correlator, error)
         spectralFunction = model(correlator)
@@ -380,8 +380,8 @@ class supervisedFit:
             raise ValueError("Invalid choice of network")
         
         optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)
-        training_total_loss_history = []
-        training_loss_history = []
+        #training_total_loss_history = []
+        #training_loss_history = []
         validation_total_loss_history = []
         validation_loss_history = []
         
@@ -421,8 +421,8 @@ class supervisedFit:
             t_total_loss_history_tmp, t_loss_history_tmp, v_total_loss_history_tmp, v_loss_history_tmp = trainer.train(
                 epochs, train_dat, validation_dat, verbose=verbose
                 )
-            training_total_loss_history.extend(t_total_loss_history_tmp)
-            training_loss_history.extend(t_loss_history_tmp)
+            #training_total_loss_history.extend(t_total_loss_history_tmp)
+            #training_loss_history.extend(t_loss_history_tmp)
             validation_total_loss_history.extend(v_total_loss_history_tmp)
             validation_loss_history.extend(v_loss_history_tmp)
             if verbose:

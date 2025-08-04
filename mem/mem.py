@@ -1,5 +1,6 @@
 from scipy import integrate
 from scipy.linalg import solve
+from scipy.optimize import root
 from scipy.optimize import minimize
 from scipy.optimize import check_grad
 from dataclasses import dataclass, field
@@ -67,9 +68,16 @@ def Di(KL, rhoi, delomega):
 def get_default_model(w: np.ndarray, defmod: str):
     def_model = np.ones(len(w))
     if defmod == "constant":
-        return def_model
+        data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
+        exact = data[:,1]
+        m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
+        def_model = np.ones(len(exact))
+        return def_model*m_0
     if defmod == "quadratic":
-        def_model = w**2 #theoretically there should be a factor here but I omit it for now
+        data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
+        exact = data[:,1]
+        m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
+        def_model = m_0* w**2
         return def_model
     if defmod == "exact":
         data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
@@ -109,7 +117,7 @@ class mem:
     def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         V, xi, U = np.linalg.svd(kernel, full_matrices=False)
         U= U.T
-        xi = np.array(list(itertools.takewhile(lambda x: x > 1e-6, xi)))
+        xi = np.array(list(itertools.takewhile(lambda x: x > 1e-10, xi)))
         s = xi.size
         V = V[:,:s]
         U = U[:,:s]
@@ -119,69 +127,77 @@ class mem:
 
         M = np.dot(VXi.T, np.dot(self.cov_mat_inv, VXi))
         rho_min = np.zeros((len(self.alpha), len(self.w)))
+        S = np.zeros(len(self.alpha))
+        L = np.zeros(len(self.alpha))
+        Q = np.zeros(len(self.alpha))
+        u_g = np.zeros((M.shape[0]))
+        u_g[0] = 1
+
+        rho_ex = get_default_model(self.w, "exact")
 
         for i in range(len(self.alpha)):
-            rho_min[i][:] = self.minimizer(corr, VXi, M, U, self.alpha[i])
-        return rho_min
-
-    def minimizer(self,
-                corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float) -> np.ndarray:
-        N_s = M.shape[0]
-        u = np.zeros((N_s))
-        u[0] = 1
-        rho = self.def_model *np.exp(np.dot(U, u))
-
-        stoppingcondition = 100
-        mu = 0
-        solveccounter = 0
-        stopping_threshhold = 100000
-        while stoppingcondition >= 1e-5:
-            G_rho = np.dot(VXi, np.dot(U.T, rho))
-            g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr))
-            T = np.dot(U.T, np.dot(np.diag(rho), U))
-            Gamma, P = np.linalg.eigh(T)
-            Gamma_safe = np.maximum(Gamma, 1e-4)
-            Psqgamma = np.dot(P, np.diag(np.sqrt(Gamma_safe)))
-            B = np.dot(Psqgamma.T, np.dot(M, Psqgamma))
-            Lambda, R = np.linalg.eigh(B)
-            Lambda_safe = np.maximum(Lambda, 1e-4)
-            Yinv = np.dot(R.T, np.dot(np.diag(np.sqrt(Gamma_safe)), P.T))
-            Yinv_du = -np.dot(Yinv, al*u + g) / (al + mu + Lambda_safe)
-            #du = np.dot(np.linalg.inv(Yinv), Yinv_du)
-            du = (-al * u - g - np.dot(M, np.dot(Yinv.T, Yinv_du))) / (al+mu)
-            S = np.sum(rho - self.def_model) - np.nansum(rho*np.dot(U,u))
-            u += du
-
-            stoppingcondition = 2*(np.linalg.norm(-al*np.dot(T, u) - np.dot(T, g)))**2/((np.linalg.norm(-al*np.dot(T, u)) + np.linalg.norm(np.dot(T, g)))**2)
-            
-            dot_Uu = np.dot(U,u)
-            rho = self.def_model * np.exp(dot_Uu)
-
-            solveccounter += 1
-            if solveccounter % 5000 == 0:
-                print("‖g‖:", np.linalg.norm(g), "‖u‖:", np.linalg.norm(u), "‖du‖:", np.linalg.norm(du))
-                L = 1/2 * np.sum(np.dot(G_rho - corr, self.cov_mat_inv)**2)
-                Q = al*S - L
-                rho_ddu = self.def_model * np.exp(np.dot(U,du))
-                dS = np.sum(rho_ddu-self.def_model) - np.nansum(rho*np.dot(U,du))
-                dL = 1/2 * np.sum(np.dot(np.dot(VXi, np.dot(U.T, rho_ddu)) -corr,self.cov_mat_inv)**2)
-                dQ = al*dS - dL
-                print(abs(dQ/Q))
-
-
-            if solveccounter > stopping_threshhold:
-                break
-        if stoppingcondition < 1e-5:
-            print("Found solution vector after iteration", solveccounter)
-        elif np.isnan(stoppingcondition):
-            print("Stoppincondition is nan.")
-        else:
-            print("No solution found in reasonable time.")
+            print(f"Evaluating alpha[{i}] = {self.alpha[i]}")
+            rho_min[i][:], u, success = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g)
+            rho = np.clip(rho_min[i][:], 1e-12, None)
+            if not success:
+                plt.plot(self.w, rho, color = "red")
+            else:
+                plt.plot(self.w, rho)
+            plt.plot(self.w, rho_ex)
+            m = np.clip(self.def_model, 1e-12, None)
+            S[i] = np.sum(rho - m - rho * np.log(rho / m))
+            #S[i] = np.sum(rho_min[i][:] - self.def_model) - np.nansum(rho_min[i][:]*np.dot(U,u))
+            G_rho = np.dot(VXi, np.dot(U.T, rho_min[i][:]))
+            diff = G_rho - corr
+            L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
+            #L[i] = 1/2 * np.sum(np.dot(G_rho - corr, self.cov_mat_inv)**2)
+            Q[i] = self.alpha[i] * S[i] + L[i]
+        print(self.alpha * S)
         
-        """plt.plot(self.w, rho)
-        plt.plot(self.w, self.def_model)
-        plt.show()"""
-        return rho
+        #figure out the w**2 factors - really confirm if there isnt something hidden here!!!
+
+        plt.figure(figsize=(12,4))
+        plt.subplot(1,2,1)
+        plt.plot(rho_ex)
+        plt.subplot(1,2,2)
+        plt.plot(self.alpha, - self.alpha *S, label = "- alpha S")
+        plt.plot(self.alpha, L, label = "L")
+        plt.plot(self.alpha, Q, label = "Q")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        return rho_min
+    
+    def minimizer(self,
+                corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float, u_guess: np.ndarray) -> np.ndarray:
+        N_s = M.shape[0]
+        rho = self.def_model *np.exp(np.dot(U, u_guess))
+
+        #stoppingcondition = 100
+        #mu = 0
+        #solveccounter = 0
+        #stopping_threshhold = 100
+        
+        def func(b):
+            rho = self.def_model *np.exp(np.dot(U, b))
+            G_rho = np.dot(VXi, np.dot(U.T, rho))
+            g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr)) 
+            f = -al * b - g
+            return f
+        
+        def jac(b):
+            rho = self.def_model *np.exp(np.dot(U, b))
+            J = VXi.T @ self.cov_mat_inv @ VXi @ U.T @ np.diag(rho) @ U
+            J += al * np.diag(np.ones(N_s))
+            return J
+
+        sol = root(func, u_guess, jac = jac)
+        u = sol.x
+        print(sol.message)
+        print(sol.nfev)
+        dot_Uu = np.dot(U, u)
+        rho = self.def_model * np.exp(dot_Uu)
+        return rho, sol.x, sol.success
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         P_alphaHM = 1/self.alpha
@@ -192,10 +208,9 @@ class mem:
             eigval, eigvec = np.linalg.eigh(lam_mat)
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
             G = Di(kernel, rho[i][:], self.delomega)
-            L[i] = 1/2 * np.sum(np.dot((corr - G), np.dot(self.cov_mat_inv, (corr - G))))
+            diff = G - corr
+            L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
             exp[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))) *np.exp(self.alpha[i] * S[i] - L[i])
-            #print(np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))))
-            #print(np.exp(self.alpha[i] * S[i] - L[i]))
         print("S:",S)
         print("L:",L)
         P_alphaDHM = P_alphaHM * exp
@@ -376,7 +391,7 @@ class FitRunner:
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
         self.fitter = mem(
             self.omega, self.alpha, self.default_model, 
-            np.diag(1/self.error**2), self.Nt)
+            np.diag(self.error[0]**2/self.error**2), self.Nt)
 
     def extractColumns(self, file: str, x_col: int, mean_col: int, error_col: int, correlator_cols: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         data = np.loadtxt(file)
@@ -417,12 +432,9 @@ class FitRunner:
         else:
             self.correlators = self.correlators.T
         n_correlators = self.correlators.shape[0]
-        if self.multiFit:
-            self.run_single_fit(self.correlators, f"Multifitting {n_correlators} correlators", results, errors)
-        else:
-            self.run_single_fit(self.mean, "Fitting mean correlator", results, errors)
-            for i, corr in enumerate(self.correlators):
-                self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors)
+        self.run_single_fit(self.mean, "Fitting mean correlator", results, errors)
+        for i, corr in enumerate(self.correlators):
+            self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors)
         return np.array(results), np.array(errors)
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:

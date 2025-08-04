@@ -102,7 +102,7 @@ The following parameters can be specified in the JSON file or as command line ar
 | **lambda_s**         | `[1e-5]`         | Any float                | Coupling for the smoothness loss contribution |
 | **lambda_l2**        | `[1e-8]`         | Any float                | Coupling for the L2 loss contribution |
 | **epochs**           | `[100]`          | Any integer                 | Number of epochs |
-| **learning_rate**    | `[1e-4]`         | Any float               | Learning rate  |
+| **learning_rate**    | `[1e-4]`         | Any float or list of floats               | Learning rate, if list of floats and `"SupervisedNN"`, a polynomial rearning rate scheduler is used. The syntax should then be `[lr_start, lr_end, epoch]` where epoch is an integer where the learning rate should freeze at the end value. |
 | **errorWeighting**   | `True`           | `True`, `False`                   | Use error weighting for the correlator loss |
 | **width**            | `[32, 32, 32]`   | List of integers                  | Specific to `"UnsupervisedNN"`: Structure of the neural network. The length of the list sets the number of layers, while the values set the widths of the layers.  |
 | **batch_size**        | `128`              | Any integer                         | Specific to `"SupervisedNN"`: The batch size for the training and validation sets. |
@@ -201,14 +201,13 @@ python reconstruction.py --config params.json
 
 Run the program with command line arguments:
 ```bash
-python reconstruction.py --config params.json --lambda_s 1e-6 3.55323189e-05 3.55323189e-05 --lambda_l2 1e-4 6.66754659e-08 6.66754659e-08 --epochs 2000 90000 10000 --learning_rate 1e-3 1e-4 1e-5 --errorWeighting true --networkStructure SpectralNN --omega_min 0 --omega_max 10 --omega_points 500 --Nt 16 --extractedQuantity RhoOverOmega --FiniteT_kernel true --multiFit false --correlatorFile correlator.txt --xCol 0 --meanCol 1 --errorCol 2 --correlatorCols "" --errormethod jackknife --saveParams true --saveLossHistory true --verbose true --outputFile null --outputDir ""
+python reconstruction.py --config params.json --lambda_s 1e-6 --lambda_l2 1e-4 --epochs 2000 --learning_rate 1e-3 --errorWeighting true --networkStructure SupervisedNN --omega_min 0 --omega_max 10 --omega_points 500 --Nt 16 --extractedQuantity RhoOverOmega --FiniteT_kernel true --multiFit false --correlatorFile correlator.txt --xCol 0 --meanCol 1 --errorCol 2 --correlatorCols "" --errormethod jackknife --saveParams true --saveLossHistory true --verbose true --outputFile null --outputDir ""
 ```
 
 ## Known issues
 
 The following issues are known and still need to be fixed/read through.
--supervised appears to be running now on a very ideal dataset. Still one should check a histogram of the weights to see if there are unused neurons 
-
+- supervised appears to be running now on a very ideal dataset. Still one should check a histogram of the weights to see if there are unused neurons 
 
 - I experienced some issues with my compiler crashing while running supervised learning for about 3000-5000 epochs. It might be useful to check this on a different machine to see if this issue persists.
 - I added a small wrapper for the raytune library - this is not finished though

@@ -7,3 +7,4 @@ supervised_ml/KadesFC*
 params.json
 outputs/
 min_ex.py
+mem_ex.py
