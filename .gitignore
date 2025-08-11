@@ -8,3 +8,4 @@ params.json
 outputs/
 min_ex.py
 mem_ex.py
+quick_plotting.py

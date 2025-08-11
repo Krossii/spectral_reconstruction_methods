@@ -74,12 +74,15 @@ class spectral_functions:
             self, w: np.ndarray, a: np.ndarray, m: np.ndarray, g: np.ndarray
             ) -> np.ndarray:
         rho = np.zeros(len(w))
-        for i in range(len(a)):
-            rho_temp = 4*a[i]*g[i]*w/((m[i]**2 + g[i]**2 - w**2)**2 + 4 * g[i]**2 * w**2)
-            rho += rho_temp
         if self.extractedQuantity=="RhoOverOmega":
-            return np.divide(rho,w, out=np.zeros_like(rho,dtype=float), where=w!=0)
+            for i in range(len(a)):
+                rho_temp = 4*a[i]*g[i]/((m[i]**2 + g[i]**2 - w**2)**2 + 4 * g[i]**2 * w**2)
+                rho += rho_temp
+            return rho
         elif self.extractedQuantity=="Rho":
+            for i in range(len(a)):
+                rho_temp = 4*a[i]*g[i]*w/((m[i]**2 + g[i]**2 - w**2)**2 + 4 * g[i]**2 * w**2)
+                rho += rho_temp
             return rho
     
     def step_function(

@@ -128,7 +128,7 @@ class SupervisedNN(tf.keras.Model):
     
 class LossCalculator:
     def __init__(self, model: tf.keras.Model=None,
-                 y_true:tf.Tensor=None,std=None,
+                 std=None,
                  kernel: tf.Tensor=None,
                  delomega: tf.Tensor =None,
                  lambda_s_func: Callable[[int], float]=lambda x:0.0,
@@ -330,7 +330,6 @@ class supervisedFit:
             correlator: np.ndarray, finiteT_kernel: bool,
             Nt: int, omega: np.ndarray, model_file: str,
             extractedQuantity: str = "RhoOverOmega", 
-            verbose: bool = True
             ) -> Tuple[np.ndarray, np.ndarray]:
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
         del_omega = omega[1] - omega[0]
@@ -380,8 +379,8 @@ class supervisedFit:
             raise ValueError("Invalid choice of network")
         
         optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)
-        #training_total_loss_history = []
-        #training_loss_history = []
+        training_total_loss_history = []
+        training_loss_history = []
         validation_total_loss_history = []
         validation_loss_history = []
         
@@ -421,8 +420,8 @@ class supervisedFit:
             t_total_loss_history_tmp, t_loss_history_tmp, v_total_loss_history_tmp, v_loss_history_tmp = trainer.train(
                 epochs, train_dat, validation_dat, verbose=verbose
                 )
-            #training_total_loss_history.extend(t_total_loss_history_tmp)
-            #training_loss_history.extend(t_loss_history_tmp)
+            training_total_loss_history.extend(t_total_loss_history_tmp)
+            training_loss_history.extend(t_loss_history_tmp)
             validation_total_loss_history.extend(v_total_loss_history_tmp)
             validation_loss_history.extend(v_loss_history_tmp)
             if verbose:
@@ -432,9 +431,11 @@ class supervisedFit:
         spectralFunction = model(correlator)
         modelname = '{}_Nt{}_{}.keras'.format(self.networkStructure, Nt, train_file[-10:-4])
         model.save(modelname)
+        training_total_loss_history = np.expand_dims(training_total_loss_history, axis=-1)
+        train_loss = np.concatenate((np.squeeze(training_loss_history), training_total_loss_history), axis = 2)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
         val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
-        return np.squeeze(spectralFunction), np.average(val_loss, axis=1), modelname
+        return np.squeeze(spectralFunction), np.average(val_loss, axis=1), np.average(train_loss, axis=1), modelname
     
 class ParameterHandler:
     def __init__(self, paramsDefaultDict: dict):
@@ -543,12 +544,13 @@ class FitRunner:
         correlator = data[:, correlator_cols]
         return x, mean, error, correlator    
 
-    def run_fit(self, fittedQuantity, messageString ,results: List[np.ndarray], loss_histories: List[np.ndarray]) -> None:
+    def run_fit(self, fittedQuantity, messageString ,results: List[np.ndarray], validation_loss_histories: List[np.ndarray],
+                 training_loss_histories: List[np.ndarray]) -> None:
         start_time = time.time()
         print("=" * 40)
         print(messageString)
         print("=" * 40)
-        sf, loss_history, modelname = self.fitter.fitCorrelator(
+        sf, v_loss_history, t_loss_history, modelname = self.fitter.fitCorrelator(
             self.x,
             self.error,
             fittedQuantity,
@@ -564,7 +566,8 @@ class FitRunner:
             print("-" * 40)
             print(f"Training time: {time.time() - start_time:.2f} seconds")
         results.append(sf)
-        loss_histories.append(loss_history)
+        training_loss_histories.append(t_loss_history)
+        validation_loss_histories.append(v_loss_history)
         return modelname
 
     def pred_res(
@@ -590,7 +593,8 @@ class FitRunner:
     
     def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
         results = []
-        loss_histories = []
+        validation_loss_histories = []
+        training_loss_histories = []
         pred_loss_histories = []
         if self.correlators.ndim == 1:
             self.correlators = np.array([self.correlators])
@@ -598,17 +602,18 @@ class FitRunner:
             self.correlators = self.correlators.T
         n_correlators = self.correlators.shape[0]
         if self.parameterHandler.get_params()["eval_model"]:
-            self.pred_res(self.mean, "Fitting mean correlator", results, loss_histories, self.parameterHandler.get_params()["model_file"])
+            self.pred_res(self.mean, "Fitting mean correlator", results, pred_loss_histories, self.parameterHandler.get_params()["model_file"])
             for i, corr in enumerate(self.correlators):
-                self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, loss_histories, self.parameterHandler.get_params()["model_file"])
+                self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, pred_loss_histories, self.parameterHandler.get_params()["model_file"])
         else:
-            model_name = self.run_fit(self.mean, "Fitting mean correlator", results, loss_histories)
+            model_name = self.run_fit(self.mean, "Fitting mean correlator", results, validation_loss_histories, training_loss_histories)
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, pred_loss_histories, model_name)
-        np.array(loss_histories)
+        np.array(validation_loss_histories)
+        np.array(training_loss_histories)
         np.array(pred_loss_histories)
         if len(pred_loss_histories) == 0:
-            return np.array(results), np.squeeze(loss_histories)
+            return np.array(results), np.squeeze(training_loss_histories), np.squeeze(validation_loss_histories)
         else:
             loss_histories = np.concatenate((np.squeeze(loss_histories), pred_loss_histories), axis= 0)
             return np.array(results), loss_histories
@@ -622,7 +627,7 @@ class FitRunner:
 
     def save_results(
             self, mean: np.ndarray, error: np.ndarray, samples: np.ndarray, 
-            loss_history: np.ndarray, extractedQuantity: str = "RhoOverOmega"
+            training_loss_history: np.ndarray, validation_loss_history: np.ndarray
             ) -> None:
         header = "Omega " + self.extractedQuantity + "_mean"
         if samples is not None and error is not None:
@@ -636,7 +641,8 @@ class FitRunner:
         if self.parameterHandler.get_params()["saveParams"]:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
         if self.parameterHandler.get_params()["saveLossHistory"]:
-            self.save_loss_history(loss_history, os.path.join(self.outputDir, self.outputFile + ".loss.dat"))
+            self.save_loss_history(training_loss_history, os.path.join(self.outputDir, self.outputFile + ".trainloss.dat"))
+            self.save_loss_history(validation_loss_history, os.path.join(self.outputDir, self.outputFile + ".valloss.dat"))
 
     def save_loss_history(self, loss_history: np.ndarray, outputFile: str) -> None:
         header = "mean_total_loss mean_main_loss mean_smoothness_loss mean_l2_loss"
@@ -692,7 +698,7 @@ def main(paramsDefaultDict):
         pprint.pprint(parameterHandler.get_params())
 
     fitRunner = FitRunner(parameterHandler)
-    results,loss_histories = fitRunner.run_fits()
+    results, training_loss_histories, validation_loss_histories = fitRunner.run_fits()
     mean = results[0]
     if len(results)>1:
         samples = results[1:]
@@ -700,7 +706,7 @@ def main(paramsDefaultDict):
     else:
         samples = None
         error = None
-    fitRunner.save_results(mean,error,samples,loss_histories)
+    fitRunner.save_results(mean,error,samples,training_loss_histories,validation_loss_histories)
 
 
 
