@@ -342,7 +342,6 @@ class supervisedFit:
 
         lossCalc = LossCalculator(
             model=model,
-            y_true=correlator,
             kernel=kernel,
             delomega=del_omega,
             std=errorWeight,
