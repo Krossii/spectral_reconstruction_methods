@@ -474,7 +474,7 @@ class supervisedFit:
         training_total_loss_history = np.expand_dims(training_total_loss_history, axis=-1)
         train_loss = np.concatenate((np.squeeze(training_loss_history), training_total_loss_history), axis = 1)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
-        val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
+        val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=1)
         return np.squeeze(spectralFunction), np.average(val_loss, axis=1), np.average(train_loss, axis=1), modelname
     
 class ParameterHandler:
