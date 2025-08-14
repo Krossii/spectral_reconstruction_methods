@@ -624,7 +624,6 @@ class FitRunner:
             self.omega,
             model_file,
             extractedQuantity=self.extractedQuantity,
-            verbose=self.verbose
         )
         if self.verbose:
             print("-" * 40)
