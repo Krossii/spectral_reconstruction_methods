@@ -105,6 +105,8 @@ class KadesConv(tf.keras.Model):
         self.hidden_layer1 = tf.keras.layers.Conv1D(64, 10, padding = 'same', activation = 'relu')
         # Conv layer 2
         self.hidden_layer2 = tf.keras.layers.Conv1D(256, 5, padding = 'same', activation = 'relu')
+        # Flatten to manage the dimensions
+        self.flatten_layer = tf.keras.layers.Flatten()
         # Squared hidden layer 
         self.hidden_layer3 = tf.keras.layers.Dense(4096, activation = 'relu')
         # Layer 4
@@ -113,8 +115,11 @@ class KadesConv(tf.keras.Model):
         self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'relu')
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        inputs = tf.expand_dims(inputs, axis =-1)
         x = self.hidden_layer1(inputs)
         x = self.hidden_layer2(x)
+        x = self.flatten_layer(x)
+        x = self.hidden_layer3(x)
         x = self.hidden_layer3(x)
         x = self.hidden_layer4(x)
         return self.output_layer(x)
@@ -135,11 +140,11 @@ class SupervisedNN(tf.keras.Model):
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Layer 1
-        self.hidden_layer1 = tf.keras.layers.Dense(int(6700), activation = 'elu')
+        self.hidden_layer1 = tf.keras.layers.Dense(6700, activation = 'elu')
         # Layer 2
-        self.hidden_layer2 = tf.keras.layers.Dense(int(12168), activation = 'elu')
+        self.hidden_layer2 = tf.keras.layers.Dense(12168, activation = 'elu')
         # Layer 3
-        self.hidden_layer3 = tf.keras.layers.Dense(int(1024), activation = 'elu')
+        self.hidden_layer3 = tf.keras.layers.Dense(1024, activation = 'elu')
         # Output layer
         self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'softplus')
 
@@ -205,11 +210,6 @@ class LossCalculator:
         y_true = tf.cast(tf.squeeze(y_true), dtype=tf.float32)
         y_pred = tf.cast(tf.squeeze(y_pred), dtype=tf.float32)
         weighting /= weighting[0]
-        print(y_pred.shape)
-        #y_pred = tf.transpose(tf.squeeze(y_pred[1, :,:]))
-        print(y_pred.shape)
-        print(y_true.shape)
-        print(weighting.shape)
         assert y_pred.shape == y_true.shape == weighting.shape, "Shape mismatch in loss calculation"
         chi_squared = tf.square((y_true - y_pred)/ weighting)
         return tf.reduce_mean(chi_squared)
@@ -241,7 +241,6 @@ class networkTrainer:
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
             rho = self.model(corr)
-            print(rho.shape) ##################### this shape for the conv net is still wrong somehow - check chatgpt maybe --
             total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err=err)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
@@ -262,8 +261,6 @@ class networkTrainer:
         train_losses_ind = []
         step = 0
         for step, (X, y, z) in enumerate(dat):
-            y = tf.expand_dims(y, axis =-1)
-            print(y.shape)
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z)
             train_losses.append(total_loss_value.numpy())
             for i in range(len(individual_losses)):
