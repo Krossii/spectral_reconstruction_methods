@@ -99,7 +99,7 @@ class ParameterHandler:
                 subpath = os.path.join(cluster_path, subpath)
             with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
-        if self.params["Method"] == "SupervisedNN" or self.params["Method"] == "KadesFC":
+        if self.params["Method"] == "SupervisedNN" or self.params["Method"] == "KadesFC" or self.params["Method"] == "KadesConv":
             black_list_vals = set((
                 "Method", "width", "create_data","data_noise", "optimizer",
                 "variance", "lengthscale", "alpha_min", "alpha_max",
@@ -171,7 +171,7 @@ def call_method_programs(parameterHandler: ParameterHandler):
             working_dir = "neuralFit/"
         subprocess.Popen(["python", "neuralFit.py", "--config", "params.json"], cwd=working_dir).communicate()
 
-    if parameterHandler.get_params()["Method"] == "SupervisedNN" or parameterHandler.get_params()["Method"] == "KadesFC":
+    if parameterHandler.get_params()["Method"] == "SupervisedNN" or parameterHandler.get_params()["Method"] == "KadesFC" or parameterHandler.get_params()["Method"] == "KadesConv":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "supervised_ml/")
         else:

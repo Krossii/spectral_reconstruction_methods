@@ -97,6 +97,39 @@ class KadesFC(tf.keras.Model):
         num_output_nodes = config.pop('num_output_nodes')
         return cls(num_output_nodes=num_output_nodes, **config)
 
+class KadesConv(tf.keras.Model):
+    def __init__(self, num_output_nodes: int, **kwargs):
+        super(KadesConv, self).__init__(**kwargs)
+        self.num_output_nodes = num_output_nodes
+        # Conv layer 1
+        self.hidden_layer1 = tf.keras.layers.Conv1D(64, 10, padding = 'same', activation = 'relu')
+        # Conv layer 2
+        self.hidden_layer2 = tf.keras.layers.Conv1D(256, 5, padding = 'same', activation = 'relu')
+        # Squared hidden layer 
+        self.hidden_layer3 = tf.keras.layers.Dense(4096, activation = 'relu')
+        # Layer 4
+        self.hidden_layer4 = tf.keras.layers.Dense(1024, activation = 'relu')
+        # Output layer
+        self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'relu')
+
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        x = self.hidden_layer1(inputs)
+        x = self.hidden_layer2(x)
+        x = self.hidden_layer3(x)
+        x = self.hidden_layer4(x)
+        return self.output_layer(x)
+    
+    def get_config(self):
+        config = super(KadesConv, self).get_config()
+        config.update({"num_output_nodes": self.num_output_nodes})
+        return config
+    
+    @classmethod
+    def from_config(cls, config):
+        num_output_nodes = config.pop('num_output_nodes')
+        return cls(num_output_nodes=num_output_nodes, **config)
+
+
 class SupervisedNN(tf.keras.Model):
     def __init__(self, num_output_nodes: int, **kwargs):
         super(SupervisedNN, self).__init__(**kwargs)
@@ -172,6 +205,11 @@ class LossCalculator:
         y_true = tf.cast(tf.squeeze(y_true), dtype=tf.float32)
         y_pred = tf.cast(tf.squeeze(y_pred), dtype=tf.float32)
         weighting /= weighting[0]
+        print(y_pred.shape)
+        #y_pred = tf.transpose(tf.squeeze(y_pred[1, :,:]))
+        print(y_pred.shape)
+        print(y_true.shape)
+        print(weighting.shape)
         assert y_pred.shape == y_true.shape == weighting.shape, "Shape mismatch in loss calculation"
         chi_squared = tf.square((y_true - y_pred)/ weighting)
         return tf.reduce_mean(chi_squared)
@@ -203,6 +241,7 @@ class networkTrainer:
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
             rho = self.model(corr)
+            print(rho.shape) ##################### this shape for the conv net is still wrong somehow - check chatgpt maybe --
             total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err=err)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
@@ -223,6 +262,8 @@ class networkTrainer:
         train_losses_ind = []
         step = 0
         for step, (X, y, z) in enumerate(dat):
+            y = tf.expand_dims(y, axis =-1)
+            print(y.shape)
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z)
             train_losses.append(total_loss_value.numpy())
             for i in range(len(individual_losses)):
@@ -338,6 +379,8 @@ class supervisedFit:
             model = load_model(model_file, custom_objects = {'SupervisedNN': SupervisedNN, 'LossCalculator': LossCalculator})
         if self.networkStructure == "KadesFC":
             model = load_model(model_file, custom_objects = {'KadesFC': KadesFC, 'LossCalculator': LossCalculator})
+        if self.networkStructure == "KadesConv":
+            model = load_model(model_file, custom_objects = {'KadesConv': KadesConv, 'LossCalculator': LossCalculator})
         correlator = tf.reshape(correlator, (1,len(correlator)))
 
         lossCalc = LossCalculator(
@@ -374,7 +417,9 @@ class supervisedFit:
             model = SupervisedNN(num_output_nodes=len(omega))
         if self.networkStructure == "KadesFC":
             model = KadesFC(num_output_nodes=len(omega))
-        if self.networkStructure != "SupervisedNN" and self.networkStructure != "KadesFC":
+        if self.networkStructure == "KadesConv":
+            model = KadesConv(num_output_nodes=len(omega))
+        if self.networkStructure != "SupervisedNN" and self.networkStructure != "KadesFC" and self.networkStructure != "KadesConv":
             raise ValueError("Invalid choice of network")
         
         optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)
@@ -430,7 +475,7 @@ class supervisedFit:
         modelname = '{}_Nt{}_{}.keras'.format(self.networkStructure, Nt, train_file[-10:-4])
         model.save(modelname)
         training_total_loss_history = np.expand_dims(training_total_loss_history, axis=-1)
-        train_loss = np.concatenate((np.squeeze(training_loss_history), training_total_loss_history), axis = 2)
+        train_loss = np.concatenate((np.squeeze(training_loss_history), training_total_loss_history), axis = 1)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
         val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=2)
         return np.squeeze(spectralFunction), np.average(val_loss, axis=1), np.average(train_loss, axis=1), modelname
