@@ -651,11 +651,7 @@ class FitRunner:
         np.array(validation_loss_histories)
         np.array(training_loss_histories)
         np.array(pred_loss_histories)
-        if len(pred_loss_histories) == 0:
-            return np.array(results), np.squeeze(training_loss_histories), np.squeeze(validation_loss_histories)
-        else:
-            tp_loss_histories = np.concatenate((np.squeeze(training_loss_histories), pred_loss_histories), axis= 0)
-            return np.array(results), tp_loss_histories, np.squeeze(validation_loss_histories)
+        return np.array(results), np.squeeze(training_loss_histories), np.squeeze(validation_loss_histories), np.squeeze(pred_loss_histories)
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
         N = len(samples)
@@ -666,7 +662,7 @@ class FitRunner:
 
     def save_results(
             self, mean: np.ndarray, error: np.ndarray, samples: np.ndarray, 
-            training_loss_history: np.ndarray, validation_loss_history: np.ndarray
+            training_loss_history: np.ndarray, validation_loss_history: np.ndarray, pred_loss_history: np.ndarray
             ) -> None:
         header = "Omega " + self.extractedQuantity + "_mean"
         if samples is not None and error is not None:
@@ -682,6 +678,7 @@ class FitRunner:
         if self.parameterHandler.get_params()["saveLossHistory"]:
             self.save_loss_history(training_loss_history, os.path.join(self.outputDir, self.outputFile + ".trainloss.dat"))
             self.save_loss_history(validation_loss_history, os.path.join(self.outputDir, self.outputFile + ".valloss.dat"))
+            self.save_loss_history(pred_loss_history, os.path.join(self.outputDir, self.outputFile + ".predloss.dat"))
 
     def save_loss_history(self, loss_history: np.ndarray, outputFile: str) -> None:
         header = "mean_total_loss mean_main_loss mean_smoothness_loss mean_l2_loss"
@@ -737,7 +734,7 @@ def main(paramsDefaultDict):
         pprint.pprint(parameterHandler.get_params())
 
     fitRunner = FitRunner(parameterHandler)
-    results, training_loss_histories, validation_loss_histories = fitRunner.run_fits()
+    results, training_loss_histories, validation_loss_histories, pred_loss_histories = fitRunner.run_fits()
     mean = results[0]
     if len(results)>1:
         samples = results[1:]
@@ -745,7 +742,7 @@ def main(paramsDefaultDict):
     else:
         samples = None
         error = None
-    fitRunner.save_results(mean,error,samples,training_loss_histories,validation_loss_histories)
+    fitRunner.save_results(mean,error,samples,training_loss_histories,validation_loss_histories, pred_loss_histories)
 
 
 
