@@ -654,8 +654,8 @@ class FitRunner:
         if len(pred_loss_histories) == 0:
             return np.array(results), np.squeeze(training_loss_histories), np.squeeze(validation_loss_histories)
         else:
-            loss_histories = np.concatenate((np.squeeze(loss_histories), pred_loss_histories), axis= 0)
-            return np.array(results), loss_histories
+            tp_loss_histories = np.concatenate((np.squeeze(training_loss_histories), pred_loss_histories), axis= 0)
+            return np.array(results), tp_loss_histories, np.squeeze(validation_loss_histories)
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
         N = len(samples)
