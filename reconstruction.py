@@ -90,7 +90,7 @@ class ParameterHandler:
                 "Method", "batch_size", "create_data","data_noise", "trainingFile", 
                 "validationFile", "optimizer", "variance", "model_file",
                 "lengthscale", "alpha_min", "alpha_max",
-                "alpha_points", "default_model","eval_model"
+                "alpha_points", "default_model","eval_model", "default_model_file"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = "SpectralNN"
@@ -103,7 +103,7 @@ class ParameterHandler:
             black_list_vals = set((
                 "Method", "width", "create_data","data_noise", "optimizer",
                 "variance", "lengthscale", "alpha_min", "alpha_max",
-                "alpha_points", "default_model", "multiFit"
+                "alpha_points", "default_model", "multiFit", "default_model_file",
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = self.params["Method"]
@@ -118,7 +118,7 @@ class ParameterHandler:
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "alpha_min", "alpha_max",
-                "alpha_points", "default_model"
+                "alpha_points", "default_model", "default_model_file"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             subpath = "gaussian/params.json"
@@ -231,6 +231,7 @@ paramsDefaultDict = {
     "alpha_max": 10,
     "alpha_points": 64,
     "default_model": "constant",
+    "default_model_file": "",
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,

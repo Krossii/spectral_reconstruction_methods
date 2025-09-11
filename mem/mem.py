@@ -65,7 +65,7 @@ def Di(KL, rhoi, delomega):
     dis = dis * delomega  # Multiply by delomega
     return dis
 
-def get_default_model(w: np.ndarray, defmod: str):
+def get_default_model(w: np.ndarray, defmod: str, file: str = "") -> np.ndarray:
     def_model = np.ones(len(w))
     if defmod == "constant":
         data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
@@ -83,6 +83,11 @@ def get_default_model(w: np.ndarray, defmod: str):
         data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
         def_model = data[:, 1]
         return def_model
+    if defmod == "file":
+        data = np.loadtxt(file)
+        def_model = data[:, 1]
+        return def_model
+    raise ValueError("Invalid choice of default model")
 
 class mem:
     def __init__(
@@ -133,50 +138,40 @@ class mem:
         u_g = np.zeros((M.shape[0]))
         u_g[0] = 1
 
-        rho_ex = get_default_model(self.w, "exact")
-
         for i in range(len(self.alpha)):
             print(f"Evaluating alpha[{i}] = {self.alpha[i]}")
             rho_min[i][:], u, success = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g)
             rho = np.clip(rho_min[i][:], 1e-12, None)
-            if not success:
-                plt.plot(self.w, rho, color = "red")
-            else:
-                plt.plot(self.w, rho)
-            plt.plot(self.w, rho_ex)
+            #if not success:
+            #    plt.plot(self.w, rho, color = "red")
+            #else:
+            #    plt.plot(self.w, rho)
             m = np.clip(self.def_model, 1e-12, None)
             S[i] = np.sum(rho - m - rho * np.log(rho / m))
-            #S[i] = np.sum(rho_min[i][:] - self.def_model) - np.nansum(rho_min[i][:]*np.dot(U,u))
             G_rho = np.dot(VXi, np.dot(U.T, rho_min[i][:]))
             diff = G_rho - corr
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
-            #L[i] = 1/2 * np.sum(np.dot(G_rho - corr, self.cov_mat_inv)**2)
             Q[i] = self.alpha[i] * S[i] + L[i]
-        print(self.alpha * S)
         
         #figure out the w**2 factors - really confirm if there isnt something hidden here!!!
 
-        plt.figure(figsize=(12,4))
+        """plt.figure(figsize=(12,4))
         plt.subplot(1,2,1)
-        plt.plot(rho_ex)
+        for i in range(len(self.alpha)):
+            plt.plot(self.w, rho_min[i][:], label = f"alpha = {self.alpha[i]}")
         plt.subplot(1,2,2)
         plt.plot(self.alpha, - self.alpha *S, label = "- alpha S")
         plt.plot(self.alpha, L, label = "L")
         plt.plot(self.alpha, Q, label = "Q")
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        plt.savefig("mem_alpha_scan.png")"""
         return rho_min
     
     def minimizer(self,
                 corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float, u_guess: np.ndarray) -> np.ndarray:
         N_s = M.shape[0]
         rho = self.def_model *np.exp(np.dot(U, u_guess))
-
-        #stoppingcondition = 100
-        #mu = 0
-        #solveccounter = 0
-        #stopping_threshhold = 100
         
         def func(b):
             rho = self.def_model *np.exp(np.dot(U, b))
@@ -211,9 +206,12 @@ class mem:
             diff = G - corr
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
             exp[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))) *np.exp(self.alpha[i] * S[i] - L[i])
-        print("S:",S)
-        print("L:",L)
         P_alphaDHM = P_alphaHM * exp
+        plt.figure(1)
+        plt.plot(self.alpha, P_alphaDHM)
+        plt.xlabel("alpha")
+        plt.ylabel("P[alpha|D,H,M]")
+        plt.savefig("mem_prob_dist.png")
 
         alpha_ind = []
         for i in range(len(self.alpha)):
@@ -244,30 +242,31 @@ class mem:
         Hess_Q = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_Q_inv = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_S = np.zeros((len(self.alpha), len(w_region), len(w_region)))
-        rho_var = np.zeros((len(self.alpha)))
-        rho_var_temp = np.zeros((len(self.alpha), len(w_region)))
-        integrand = np.zeros((len(self.alpha))) 
+        n_alpha = len(alpharegion)
+        rho_var = np.zeros((n_alpha))
+        rho_var_temp = np.zeros((n_alpha, len(w_region)))
+        integrand = np.zeros((n_alpha)) 
         for i in range(len(self.w)):
             if w_region[0] == self.w[i]:
                 w_start_index = i
                 break
         norm = (w_region[len(w_region)-1] - w_region[0])**2
-        for i in range(len(self.alpha)):
+        for i in range(n_alpha):
             for k in range(len(w_region)):
                 for n in range(len(w_region)):
                     if k == n:
                         if rho_alpha[i][k+w_start_index] == 0:
                             print("A_alpha value error")
                         Hess_S[i][k][n] = - 1/(rho_alpha[i][k+w_start_index] * self.delomega)
-                    Hess_Q[i][k][n] = self.alpha[i] * Hess_S[i][k][n] - Hess_L[k][n]
+                    Hess_Q[i][k][n] = alpharegion[i] * Hess_S[i][k][n] - Hess_L[k][n]
             Hess_Q_inv[i][:][:] = np.linalg.inv(Hess_Q[i][:][:])
-        for i in range(len(self.alpha)):
+        for i in range(n_alpha):
             for j in range(len(w_region)):
                 rho_var_temp[i][j] = integrate.trapezoid(Hess_Q_inv[i][j][:], w_region)
             rho_var[i] = integrate.trapezoid(rho_var_temp[i][:], w_region) 
             rho_var[i] *= -1/norm
             integrand[i] = rho_var[i] * P_alphaDHM[i]
-        rho_out_var = integrate.trapezoid(integrand, self.alpha)
+        rho_out_var = integrate.trapezoid(integrand, alpharegion)
         return rho_out_var
 
     def fitCorrelator(
@@ -292,14 +291,14 @@ class mem:
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")
             error = np.zeros(len(omega))
-        if Prob_dist == 1:
+        if isinstance(Prob_dist, int):
             print("*"*40)
             print("Probability distribution empty. Aborting error evaluation.")
             error = np.zeros(len(omega))
         else:
             error_region = self.w[:50]
             error = self.step3(rho_min, Hess_L, error_region, Prob_dist, alpha_reg)
-        return rho_out, error
+        return rho_out, error, Prob_dist
 
 class ParameterHandler:
     def __init__(self, paramsDefaultDict: dict):
@@ -381,7 +380,7 @@ class FitRunner:
             self.parameterHandler.get_params()["omega_max"],
             self.parameterHandler.get_params()["omega_points"]
         )
-        self.default_model = get_default_model(self.omega, self.parameterHandler.get_params()["default_model"])
+        self.default_model = get_default_model(self.omega, self.parameterHandler.get_params()["default_model"], self.parameterHandler.get_params()["default_model_file"])
         self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
         self.verbose = self.parameterHandler.get_verbose()
         self.multiFit = self.parameterHandler.get_params()["multiFit"]
@@ -403,12 +402,12 @@ class FitRunner:
 
     def run_single_fit(
             self, fittedQuantity, messageString ,results: List[np.ndarray] ,
-            errors: List[np.ndarray]) -> None:
+            errors: List[np.ndarray], probs: List[np.ndarray]) -> None:
         start_time = time.time()
         print("=" * 40)
         print(messageString)
         print("=" * 40)
-        rho, error = self.fitter.fitCorrelator(
+        rho, error, prob = self.fitter.fitCorrelator(
             self.x,
             fittedQuantity,
             self.finiteT_kernel,
@@ -422,20 +421,23 @@ class FitRunner:
             print(f"Fitting time: {time.time() - start_time:.2f} seconds")
         results.append(rho)
         errors.append(error)
+        probs.append(prob)
 
     
     def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
         results = []
         errors = []
+        probs = []
         if self.correlators.ndim == 1:
             self.correlators = np.array([self.correlators])
         else:
             self.correlators = self.correlators.T
         n_correlators = self.correlators.shape[0]
-        self.run_single_fit(self.mean, "Fitting mean correlator", results, errors)
-        for i, corr in enumerate(self.correlators):
-            self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors)
-        return np.array(results), np.array(errors)
+        self.run_single_fit(self.mean, "Fitting mean correlator", results, errors, probs)
+        ############################### this needs to be uncommented later
+        #for i, corr in enumerate(self.correlators):
+        #    self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors, probs)
+        return np.array(results), np.array(errors), np.array(probs)
 
     def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
         N = len(samples)
@@ -446,16 +448,22 @@ class FitRunner:
 
     def save_results(
             self, mean: np.ndarray, error: np.ndarray, samples: np.ndarray, 
-            extractedQuantity: str = "RhoOverOmega"
+            prob: np.ndarray
             ) -> None:
         header = "Omega " + self.extractedQuantity + "_mean"
         if samples is not None and error is not None:
             header += f" {self.extractedQuantity}_error"
             for i in range(len(samples)):
                 header += f" {self.extractedQuantity}_sample_{i}"
-            writeData = np.column_stack((self.omega, mean, error, samples.T))
+            header += " Probability_distribution"
+            writeData = np.column_stack((self.omega, mean, error, samples.T, prob))
         else:
-            writeData = np.column_stack((self.omega, mean))
+            header += " Probability_distribution"
+            print(prob)
+            if prob is None:
+                writeData = np.column_stack((self.omega, mean))
+            else:
+                writeData = np.column_stack((self.omega, mean, prob))
         np.savetxt(os.path.join(self.outputDir, self.outputFile), writeData, header=header)
         if self.parameterHandler.get_params()["saveParams"]:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
@@ -508,7 +516,9 @@ def main(paramsDefaultDict):
         pprint.pprint(parameterHandler.get_params())
 
     fitRunner = FitRunner(parameterHandler)
-    results, error = fitRunner.run_fits()
+    results, error, prob = fitRunner.run_fits()
+    if len(prob) <= 1:
+        prob = None
     mean = results[0]
     if len(results)>1:
         samples = results[1:]
@@ -516,19 +526,20 @@ def main(paramsDefaultDict):
     else:
         samples = None
         error = None
-    fitRunner.save_results(mean,error,samples)
+    fitRunner.save_results(mean,error,samples, prob)
 
 
 
     
 paramsDefaultDict = {
     "Method": "MEM",
-    #MEM specific; default model: choose from quadratic, constant currently (ai to be implemented)
+    #MEM specific; default model: choose from quadratic, constant, file, exact
     #should not give 0 as a minimum for alpha, just a small value
     "alpha_min": 0,
     "alpha_max": 10,
     "alpha_points": 64,
     "default_model": "constant",
+    "default_model_file": "",
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,

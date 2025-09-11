@@ -118,7 +118,8 @@ The following parameters can be specified in the JSON file or as command line ar
 | **alpha_min**        | `0`              | Any float                         | Specific to `"MEM"`:The lower bound of the alpha range |
 | **alpha_max**        | `10`              | Any float                         | Specific to `"MEM"`: The upper bound of the alpha range |
 | **alpha_points**        | `64`              | Any float                         | Specific to `"MEM"`: The number of points in the alpha range |
-| **default_model**        | `"constant"`              | `"constant"`,`"quadratic"`,`"exact"`              | Specific to `"MEM"`: The default model to be used. |
+| **default_model**        | `"constant"`              | `"constant"`,`"quadratic"`,`"exact"`, `"file"`              | Specific to `"MEM"`: The default model to be used. The values should be in the second column. |
+| **default_model_file**        | `""`              | Any string path              | Specific to `"MEM"`: The file path to the default model. |
 | **omega_min**        | `0`              | Any float                         | The lower bound of the frequency range |
 | **omega_max**        | `10`             | Any float                         | The upper bound of the frequency range |
 | **omega_points**     | `500`            | Any integer                       | The number of points in the frequency range |

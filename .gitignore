@@ -1,4 +1,5 @@
 venv/
+.venv/
 supervised_ml/spf_datasets/train*
 supervised_ml/spf_datasets/val*
 supervised_ml/supervisedNN*
@@ -9,3 +10,7 @@ outputs/
 min_ex.py
 mem_ex.py
 quick_plotting.py
+quick_plot.py
+quick_plot.png
+mem/mem_*
+supervised_ml/debug*

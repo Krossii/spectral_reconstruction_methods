@@ -402,9 +402,9 @@ class create_Kades_datset:
 
     def breit_wigners(self):
         one_dat = []
-        A = np.linspace(0.1,1,30)
-        M = np.linspace(0.5,3,30)
-        G = np.linspace(0.1,0.4,30)
+        A = np.linspace(0.1,1,20) # in the paper they use 84 samples
+        M = np.linspace(0.5,3,20)
+        G = np.linspace(0.1,0.4,20)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -412,8 +412,8 @@ class create_Kades_datset:
             for j in range(len(M)):
                 for k in range(len(G)):
                     rho = self.breit_wigner(self.w, A[i], M[j], G[k])
-                    normalizing_fac = np.trapezoid(rho, self.w)
-                    normed_rho = rho/normalizing_fac
+                    #normalizing_fac = np.trapezoid(rho, self.w)
+                    normed_rho = rho#/normalizing_fac
                     corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
                     if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
@@ -462,8 +462,8 @@ class create_Kades_datset:
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Splitting into test and validation sets.")
-        full_set = bw + mbw
-        print(len(full_set))
+        full_set = bw #+ mbw
+        print("Number of pairs:", len(full_set))
         train_dat = []
         val_dat = []
         integers_split = np.random.randint(
