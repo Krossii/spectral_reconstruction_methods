@@ -155,7 +155,7 @@ class mem:
         
         #figure out the w**2 factors - really confirm if there isnt something hidden here!!!
 
-        """plt.figure(figsize=(12,4))
+        plt.figure(figsize=(12,4))
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:], label = f"alpha = {self.alpha[i]}")
@@ -165,7 +165,7 @@ class mem:
         plt.plot(self.alpha, Q, label = "Q")
         plt.legend()
         plt.tight_layout()
-        plt.savefig("mem_alpha_scan.png")"""
+        plt.savefig("mem_alpha_scan.png")
         return rho_min
     
     def minimizer(self,
@@ -225,20 +225,19 @@ class mem:
             P_alphaDHM_red[i] = P_alphaDHM[alpha_ind[i]]
             rho_red[i][:] = rho[alpha_ind[i]][:]
         normalizing_fac = integrate.trapezoid(P_alphaDHM_red, alpha_int)
-        print(alpha_int)
-        print(P_alphaDHM)
         rho_out = np.zeros(len(self.w))
-        if normalizing_fac < 1e-6: 
+        if normalizing_fac < 1e-10: 
             P_alphaDHM_red = 1
             normalizing_fac = 1
-            return np.mean(rho, axis=0), P_alphaDHM_red, alpha_int, Hess_mat
+            print("Warning: Probability distribution too narrow, using maximum only for averaging")
+            return np.mean(rho, axis=0), P_alphaDHM, P_alphaDHM_red, alpha_int, Hess_mat
         for i in range(len(self.w)):
             rho_out[i] = integrate.trapezoid(np.transpose(rho_red)[i][:] * P_alphaDHM_red/normalizing_fac, alpha_int)
-        return rho_out, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
+        return rho_out, P_alphaDHM, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
 
     def step3(
             self, rho_alpha: np.ndarray, Hess_L: np.ndarray, w_region: np.ndarray, 
-            P_alphaDHM: np.ndarray, alpharegion: np.ndarray) -> np.ndarray:
+            P_alphaDHM_normed: np.ndarray, alpharegion: np.ndarray) -> np.ndarray:
         Hess_Q = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_Q_inv = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_S = np.zeros((len(self.alpha), len(w_region), len(w_region)))
@@ -265,7 +264,7 @@ class mem:
                 rho_var_temp[i][j] = integrate.trapezoid(Hess_Q_inv[i][j][:], w_region)
             rho_var[i] = integrate.trapezoid(rho_var_temp[i][:], w_region) 
             rho_var[i] *= -1/norm
-            integrand[i] = rho_var[i] * P_alphaDHM[i]
+            integrand[i] = rho_var[i] * P_alphaDHM_normed[i]
         rho_out_var = integrate.trapezoid(integrand, alpharegion)
         return rho_out_var
 
@@ -283,7 +282,7 @@ class mem:
         if verbose:
             print("*"*40)
             print("Starting calculation of probability distribution")
-        rho_out, Prob_dist, alpha_reg, Hess_L = self.step2(rho_min, correlator, kernel)
+        rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min, correlator, kernel)
         if verbose:
             print("*"*40)
             print("Starting error evaluation")
@@ -291,13 +290,13 @@ class mem:
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")
             error = np.zeros(len(omega))
-        if isinstance(Prob_dist, int):
+        if isinstance(Prob_dist_normed, int):
             print("*"*40)
             print("Probability distribution empty. Aborting error evaluation.")
             error = np.zeros(len(omega))
         else:
             error_region = self.w[:50]
-            error = self.step3(rho_min, Hess_L, error_region, Prob_dist, alpha_reg)
+            error = self.step3(rho_min, Hess_L, error_region, Prob_dist_normed, alpha_reg)
         return rho_out, error, Prob_dist
 
 class ParameterHandler:
@@ -458,13 +457,12 @@ class FitRunner:
             header += " Probability_distribution"
             writeData = np.column_stack((self.omega, mean, error, samples.T, prob))
         else:
-            header += " Probability_distribution"
-            print(prob)
-            if prob is None:
-                writeData = np.column_stack((self.omega, mean))
-            else:
-                writeData = np.column_stack((self.omega, mean, prob))
+            writeData = np.column_stack((self.omega, mean))
         np.savetxt(os.path.join(self.outputDir, self.outputFile), writeData, header=header)
+        prob_header = "alpha Probability_distribution"
+        if prob is not None and len(prob) == len(self.alpha):
+            probData = np.column_stack((self.alpha, prob))
+            np.savetxt(os.path.join(self.outputDir, self.outputFile + "_prob"), probData, header=prob_header)
         if self.parameterHandler.get_params()["saveParams"]:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
 
@@ -517,7 +515,7 @@ def main(paramsDefaultDict):
 
     fitRunner = FitRunner(parameterHandler)
     results, error, prob = fitRunner.run_fits()
-    if len(prob) <= 1:
+    if len(np.squeeze(prob)) <= 1:
         prob = None
     mean = results[0]
     if len(results)>1:
@@ -526,7 +524,7 @@ def main(paramsDefaultDict):
     else:
         samples = None
         error = None
-    fitRunner.save_results(mean,error,samples, prob)
+    fitRunner.save_results(mean,error,samples, np.squeeze(prob))
 
 
 
