@@ -61,7 +61,7 @@ def Di(KL, rhoi, delomega):
 
     # Perform matrix multiplication
     dis = np.matmul(KL, rhoi)
-    dis = np.squeeze(dis, axis=-1)  # Remove the singleton dimension to get [25]
+    dis = np.squeeze(dis, axis=-1)  # Remove the singleton dimension
     dis = dis * delomega  # Multiply by delomega
     return dis
 
@@ -74,7 +74,7 @@ def get_default_model(w: np.ndarray, defmod: str, file: str = "") -> np.ndarray:
         def_model = np.ones(len(exact))
         return def_model*m_0
     if defmod == "quadratic":
-        data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
+        data = np.loadtxt("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
         exact = data[:,1]
         m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
         def_model = m_0* w**2
@@ -135,12 +135,13 @@ class mem:
         S = np.zeros(len(self.alpha))
         L = np.zeros(len(self.alpha))
         Q = np.zeros(len(self.alpha))
-        u_g = np.zeros((M.shape[0]))
-        u_g[0] = 1
+        #u_g = np.zeros((M.shape[0]))
+        u_g = np.random.rand(M.shape[0])
+        #u_g[0] = 1
 
         for i in range(len(self.alpha)):
             print(f"Evaluating alpha[{i}] = {self.alpha[i]}")
-            rho_min[i][:], u, success = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g)
+            rho_min[i][:], u, success = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
             rho = np.clip(rho_min[i][:], 1e-12, None)
             #if not success:
             #    plt.plot(self.w, rho, color = "red")
@@ -148,19 +149,17 @@ class mem:
             #    plt.plot(self.w, rho)
             m = np.clip(self.def_model, 1e-12, None)
             S[i] = np.sum(rho - m - rho * np.log(rho / m))
-            G_rho = np.dot(VXi, np.dot(U.T, rho_min[i][:]))
+            G_rho = Di(kernel, rho_min[i][:], self.delomega)
             diff = G_rho - corr
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
-            Q[i] = self.alpha[i] * S[i] + L[i]
-        
-        #figure out the w**2 factors - really confirm if there isnt something hidden here!!!
+            Q[i] = self.alpha[i] * S[i] - L[i]
 
-        plt.figure(figsize=(12,4))
+        plt.figure(1, figsize=(12,4))
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:], label = f"alpha = {self.alpha[i]}")
         plt.subplot(1,2,2)
-        plt.plot(self.alpha, - self.alpha *S, label = "- alpha S")
+        plt.plot(self.alpha, self.alpha *S, label = "- alpha S")
         plt.plot(self.alpha, L, label = "L")
         plt.plot(self.alpha, Q, label = "Q")
         plt.legend()
@@ -169,13 +168,13 @@ class mem:
         return rho_min
     
     def minimizer(self,
-                corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float, u_guess: np.ndarray) -> np.ndarray:
+                corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float, u_guess: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         N_s = M.shape[0]
         rho = self.def_model *np.exp(np.dot(U, u_guess))
         
         def func(b):
             rho = self.def_model *np.exp(np.dot(U, b))
-            G_rho = np.dot(VXi, np.dot(U.T, rho))
+            G_rho = np.dot(VXi, np.dot(U.T, rho)) #Di(kernel, rho, self.delomega)
             g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr)) 
             f = -al * b - g
             return f
@@ -183,10 +182,10 @@ class mem:
         def jac(b):
             rho = self.def_model *np.exp(np.dot(U, b))
             J = VXi.T @ self.cov_mat_inv @ VXi @ U.T @ np.diag(rho) @ U
-            J += al * np.diag(np.ones(N_s))
+            J += al * np.eye(N_s)
             return J
-
-        sol = root(func, u_guess, jac = jac)
+        
+        sol = root(func, u_guess, jac = jac, method='lm')
         u = sol.x
         print(sol.message)
         print(sol.nfev)
@@ -196,22 +195,44 @@ class mem:
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         P_alphaHM = 1/self.alpha
-        S, L, exp = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
+        S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
         Hess_mat = np.dot(kernel.T, np.dot(self.cov_mat_inv, kernel))
+        evs = np.zeros((len(self.alpha), len(self.w)))
         for i in range(len(self.alpha)):
             lam_mat = np.dot(np.sqrt(np.diag(rho[i][:])), np.dot(Hess_mat, np.sqrt(np.diag(rho[i][:]))))
             eigval, eigvec = np.linalg.eigh(lam_mat)
+            evs[i][:] = eigval
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
             G = Di(kernel, rho[i][:], self.delomega)
             diff = G - corr
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
-            exp[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval))) *np.exp(self.alpha[i] * S[i] - L[i])
+            prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
+            exp[i] = prefactor[i] *np.exp(self.alpha[i] * S[i] - L[i])
         P_alphaDHM = P_alphaHM * exp
-        plt.figure(1)
-        plt.plot(self.alpha, P_alphaDHM)
+        plt.figure(2, figsize=(15,5))
+        plt.subplot(1,3,1)
+        plt.plot(np.log(self.alpha), np.log(evs), alpha = 0.3, linestyle = "--")
+        plt.plot(np.log(self.alpha), np.log(self.alpha), label = "log(alpha)")
+        plt.xlabel("log(alpha)")
+        plt.ylabel("log(mean eigenvalue)")
+        plt.legend()
+        plt.subplot(1,3,2)
+        plt.plot(self.alpha, P_alphaDHM, label = "P[alpha|D,H,M]")
+        plt.plot(self.alpha, prefactor, label = "prefactor")
+        plt.plot(self.alpha, np.exp(self.alpha*S - L), label = "exp")
+        plt.legend()
         plt.xlabel("alpha")
         plt.ylabel("P[alpha|D,H,M]")
+        plt.subplot(1,3,3)
+        plt.plot(self.alpha, self.alpha*S, label = "alpha*S")
+        plt.plot(self.alpha, L, label = "L")
+        plt.plot(self.alpha, self.alpha*S - L, label = "Q")
+        plt.xlabel("alpha")
+        plt.ylabel("Q, L, alpha*S")
+        plt.legend()
+        plt.tight_layout()
         plt.savefig("mem_prob_dist.png")
+
 
         alpha_ind = []
         for i in range(len(self.alpha)):
@@ -389,7 +410,7 @@ class FitRunner:
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
         self.fitter = mem(
             self.omega, self.alpha, self.default_model, 
-            np.diag(self.error[0]**2/self.error**2), self.Nt)
+            np.diag(1/self.error**2), self.Nt)
 
     def extractColumns(self, file: str, x_col: int, mean_col: int, error_col: int, correlator_cols: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         data = np.loadtxt(file)
