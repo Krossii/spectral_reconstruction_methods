@@ -68,7 +68,7 @@ def Di(KL, rhoi, delomega):
 def get_default_model(w: np.ndarray, defmod: str, file: str = "") -> np.ndarray:
     def_model = np.ones(len(w))
     if defmod == "constant":
-        data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
+        data = np.loadtxt("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
         exact = data[:,1]
         m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
         def_model = np.ones(len(exact))
