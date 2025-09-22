@@ -116,9 +116,6 @@ class mem:
             raise ValueError("Invalid choice spectral function target")
         return kernel
 
-    def partialL_partialG(self, G_rho: np.ndarray, corr: np.ndarray)-> np.ndarray:
-        return np.dot(self.cov_mat_inv, (G_rho - corr))
-
     def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         V, xi, U = np.linalg.svd(kernel, full_matrices=False)
         U= U.T
@@ -128,13 +125,11 @@ class mem:
         U = U[:,:s]
         print("Singular space dimension:", s, "down from:", min(self.N_t, len(self.w)))
 
-        VXi = np.dot(V, np.diag(xi))
+        VXi = V @ np.diag(xi)
 
-        M = np.dot(VXi.T, np.dot(self.cov_mat_inv, VXi))
+        M = VXi.T @ self.cov_mat_inv @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
-        S = np.zeros(len(self.alpha))
-        L = np.zeros(len(self.alpha))
-        Q = np.zeros(len(self.alpha))
+        S, L, Q = np.zeros(len(self.alpha)),np.zeros(len(self.alpha)),np.zeros(len(self.alpha))
         #u_g = np.zeros((M.shape[0]))
         u_g = np.random.rand(M.shape[0])
         #u_g[0] = 1
@@ -170,17 +165,17 @@ class mem:
     def minimizer(self,
                 corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float, u_guess: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         N_s = M.shape[0]
-        rho = self.def_model *np.exp(np.dot(U, u_guess))
+        rho = self.def_model *np.exp(U @ u_guess)
         
         def func(b):
-            rho = self.def_model *np.exp(np.dot(U, b))
-            G_rho = np.dot(VXi, np.dot(U.T, rho)) #Di(kernel, rho, self.delomega)
-            g = np.dot(VXi.T, self.partialL_partialG(G_rho, corr)) 
+            rho = self.def_model *np.exp(U @ b)
+            G_rho = Di(kernel, rho, self.delomega)
+            g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
             f = -al * b - g
             return f
         
         def jac(b):
-            rho = self.def_model *np.exp(np.dot(U, b))
+            rho = self.def_model *np.exp(U @ b)
             J = VXi.T @ self.cov_mat_inv @ VXi @ U.T @ np.diag(rho) @ U
             J += al * np.eye(N_s)
             return J
@@ -189,17 +184,16 @@ class mem:
         u = sol.x
         print(sol.message)
         print(sol.nfev)
-        dot_Uu = np.dot(U, u)
-        rho = self.def_model * np.exp(dot_Uu)
+        rho = self.def_model * np.exp(U @ u)
         return rho, sol.x, sol.success
 
     def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
         P_alphaHM = 1/self.alpha
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
-        Hess_mat = np.dot(kernel.T, np.dot(self.cov_mat_inv, kernel))
         evs = np.zeros((len(self.alpha), len(self.w)))
+        Hess_mat = kernel.T @ self.cov_mat_inv @ kernel
         for i in range(len(self.alpha)):
-            lam_mat = np.dot(np.sqrt(np.diag(rho[i][:])), np.dot(Hess_mat, np.sqrt(np.diag(rho[i][:]))))
+            lam_mat = np.sqrt(np.diag(rho[i][:])) @ Hess_mat @ np.sqrt(np.diag(rho[i][:]))
             eigval, eigvec = np.linalg.eigh(lam_mat)
             evs[i][:] = eigval
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
@@ -236,7 +230,7 @@ class mem:
 
         alpha_ind = []
         for i in range(len(self.alpha)):
-            if P_alphaDHM[i] >= 10**(-1) * P_alphaDHM.max():
+            if P_alphaDHM[i] >= 10e-1 * P_alphaDHM.max():
                 alpha_ind.append(i)
         alpha_int = np.zeros(len(alpha_ind))
         rho_red = np.zeros((len(alpha_ind), len(self.w)))

@@ -3,6 +3,7 @@
 import numpy as np
 from scipy.optimize import root
 from scipy.linalg import svd
+from scipy.optimize import least_squares
 np.random.seed(3000)
 
 def KL_kernel_Position_FiniteT(Position, Omega,T):
@@ -53,8 +54,8 @@ def mem_bryan(K, d, m, alpha, err, max_iter=100):
     # Reduced space
     N_red = len(s)
     # Initial guess
-    #u0 = np.zeros(N_red)
-    u0 = np.random.rand(N_red)*0.1
+    u0 = np.zeros(N_red)
+    #u0 = np.random.rand(N_red)*0.1
 
     def func(u):
         # rho in model space
@@ -62,19 +63,23 @@ def mem_bryan(K, d, m, alpha, err, max_iter=100):
         # G = K @ rho
         G = K @ rho
         # Gradient in reduced space
-        grad = -alpha * u - np.diag(s) @ U.T @ np.diag(1/err**2) @ (G - d)
+        grad = -alpha * u - U.T @ (G - d)
         return grad
 
     def jac(u):
         rho = m * np.exp(Vh.T @ u)
         J = -alpha * np.eye(N_red)
-        J -= np.diag(s) @ U.T @ np.diag(1/err**2) @ K @ np.diag(rho) @ Vh.T
+        J -= U.T @ K @ np.diag(rho) @ Vh.T
         return J
+    
+    sol = root(func, u0, jac=jac, method='hybr', options={'maxfev': max_iter, 'xtol':1e-10})
 
-    sol = root(func, u0, jac=jac, method='lm')
-    print(sol.success)
-    print(sol.nfev)
-    print(sol.message)
+    if not sol.success:
+        print("Not converged:")
+        print(alpha)
+        print(sol.nfev)
+        print(sol.message)
+
     u_opt = sol.x
     rho_opt = m * np.exp(Vh.T @ u_opt)
     return rho_opt
@@ -122,18 +127,32 @@ def read_rho_data(filename):
 
 # Example usage:
 if __name__ == "__main__":
-    x, d, err = read_corr_data("/mnt/c/Users/chris/Desktop/mock-data-main/BW/mock_corr_BW_Nt16_noise3.dat")
-    omega, rho_true = read_rho_data("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
-    N_model = len(omega)
-    N_data = len(x)
+    realistic = False
+    if realistic:
+        x, d, err = read_corr_data("/mnt/c/Users/chris/Desktop/mock-data-main/BW/mock_corr_BW_Nt16_noise3.dat")
+        omega, rho_true = read_rho_data("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
+        N_model = len(omega)
+        N_data = len(x)
 
-    K=KL_kernel_Omega(KL_kernel_Position_FiniteT,x,omega,args=(1/N_data,))
-
+        K=KL_kernel_Omega(KL_kernel_Position_FiniteT,x,omega,args=(1/N_data,))
+    else:
+        N_data = 16
+        N_model = 500
+        x = np.linspace(0, 15, N_data)
+        omega = np.linspace(0, 1, N_model)
+        # Kernel: exponential decay
+        K = np.exp(-x[:, None] * omega[None, :])
+        # True spectral function: Gaussian
+        rho_true = np.exp(-0.5 * (omega - 0.5)**2 / 0.05**2)
+        # Data: K @ rho_true + noise
+        d = K @ rho_true
+        err = 0.05 * d * np.ones_like(d)
+        d = d + np.random.normal(0, err)
     m = np.ones(N_model)
     #m *= omega**2
     #m /= np.trapezoid(m, omega)
     # Regularization parameter
-    alpha = np.logspace(0,5,1000)
+    alpha = np.linspace(1e-1,1e4,100)
     rho_mem = np.zeros((len(alpha), N_model))
     # Run MEM
     for i in range(len(alpha)):
@@ -146,16 +165,22 @@ if __name__ == "__main__":
         S[i] = np.sum(rho - m - rho * np.log(rho / m))
         G = K @ rho
         diff = G - d
+        print(S[i])
         L[i] = 0.5 * np.sum((diff / err)**2)
 
     Q = alpha * S - L
-    hessian_eigenvalues = np.zeros((len(alpha), len(rho_mem[0])))
+    """hessian_eigenvalues = np.zeros((len(alpha), len(rho_mem[0])))
     P_alpha = np.zeros(len(alpha))
     for i in range(len(alpha)):
         Hessian = np.sqrt(np.diag(rho_mem[i])) @ K.T @ np.diag(1/err**2) @ K @ np.sqrt(np.diag(rho_mem[i]))
         hessian_eigenvalues[i, :len(np.linalg.eigvalsh(Hessian))] = np.linalg.eigvalsh(Hessian)
     
-    P_alpha, alpharegion = compute_P_alpha(alpha, S, L, hessian_eigenvalues)
+    P_alpha, alpharegion = compute_P_alpha(alpha, S, L, hessian_eigenvalues)"""
+    P_alpha = np.exp(Q - np.max(Q))  # For numerical stability
+    P_alpha /= np.trapz(P_alpha, alpha)  # Normalize
+
+    # Weighted average over alpha
+    alpharegion = alpha
 
     rho_final = np.trapezoid(rho_mem.T * P_alpha, alpharegion, axis=1)
 
@@ -186,8 +211,8 @@ if __name__ == "__main__":
     plt.ylabel('rho(omega)')
     plt.title('Spectral Function Reconstruction')
     plt.subplot(1,4,4)
-    plt.errorbar(x, d, yerr=err, fmt='o', label='Data')
-    plt.plot(x, K @ rho_final, label='Predicted Data')
+    plt.errorbar(x, d, yerr=err, fmt='x', label='Data', alpha=0.5, capsize=2, elinewidth=1)
+    plt.scatter(x, K @ rho_final, label='Predicted Data', marker = 'x', color='orange')
     plt.legend()
     plt.xlabel('x')
     plt.ylabel('G(x)')
