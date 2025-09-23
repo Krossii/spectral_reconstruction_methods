@@ -43,13 +43,13 @@ def mem_bryan(K, d, m, alpha, err, max_iter=100):
     """
 
     # SVD decomposition
-    U, s, Vh = svd(K, full_matrices=False)
+    U, s, V = svd(K.T, full_matrices=False)
     # Truncate small singular values
     tol = 1e-10
     s_mask = s > tol
-    U = U[:, s_mask]
+    U = U[:,s_mask]
     s = s[s_mask]
-    Vh = Vh[s_mask, :]
+    V = V[:, s_mask]
 
     # Reduced space
     N_red = len(s)
@@ -59,32 +59,70 @@ def mem_bryan(K, d, m, alpha, err, max_iter=100):
 
     def func(u):
         # rho in model space
-        rho = m * np.exp(Vh.T @ u)
+        rho = m * np.exp(U @ u)
         # G = K @ rho
         G = K @ rho
         # Gradient in reduced space
-        grad = -alpha * u - U.T @ (G - d)
+        grad = -alpha * u - V.T @ (G - d)
         return grad
 
     def jac(u):
-        rho = m * np.exp(Vh.T @ u)
+        rho = m * np.exp(U @ u)
         J = -alpha * np.eye(N_red)
-        J -= U.T @ K @ np.diag(rho) @ Vh.T
+        J -= V.T @ K @ np.diag(rho) @ U
         return J
     
-    sol = root(func, u0, jac=jac, method='hybr', options={'maxfev': max_iter, 'xtol':1e-10})
+    """sol = root(func, u0, jac=jac, method='hybr', options={'maxfev': max_iter, 'xtol':1e-10})
 
     if not sol.success:
         print("Not converged:")
         print(alpha)
         print(sol.nfev)
-        print(sol.message)
+        print(sol.message)"""
 
-    u_opt = sol.x
-    rho_opt = m * np.exp(Vh.T @ u_opt)
+    sol = Newton_rhapson_minimization(U,s,V,u0,alpha,err,d,m)
+
+    u_opt = sol
+    rho_opt = m * np.exp(U @ u_opt)
     return rho_opt
 
-# ...existing code...
+def Newton_rhapson_minimization(U,s,V,u, alpha, err, d, m):
+    max_mu_iter = 10000
+    M = np.diag(s) @ V.T @ np.diag(1/err**2) @ V @ np.diag(s)
+    mu = 0
+    rho = m * np.exp(U @ u)
+    F = K @ rho
+    diff = F - d
+    S_n = np.sum(rho - m - rho * np.log(rho / m))
+    L_n = 0.5 * np.sum((diff / err)**2)
+    Q_n = alpha *S_n - L_n
+    for i in range(max_mu_iter):
+        rho = m * np.exp(U @ u)
+        T = U.T @ np.diag(rho) @ U
+        J = alpha * np.eye(len(s)) + M @ T
+        F = K @ rho
+        diff = F - d
+        g = np.diag(s) @ V.T @ np.diag(1/err**2) @ diff
+        del_u = np.linalg.inv(J)@ (-alpha * u - g)
+        if del_u.T @ T @ del_u <= 0.2* np.sum(m):
+            Q_o = Q_n
+            u += del_u
+            rho = m * np.exp(U @ u)
+            S_n = np.sum(rho - m - rho * np.log(rho / m))
+            L_n = 0.5 * np.sum((diff / err)**2)
+            Q_n = alpha *S_n -L_n
+            del_Q = Q_o - Q_n
+            mu = 0
+            if abs(del_Q/Q_o) < 10e-5:
+                print("Converged after iteration", i)
+                print("del_Q/Q =", abs(del_Q/Q_o))
+                break
+        if mu == 0: mu = 10e-4* alpha 
+        else: mu *= 10
+        if i == max_mu_iter -1:
+            print("Exceeded maximum iterations for alpha", alpha)
+    return u
+
 def compute_P_alpha(alpha, S, L, hessian_eigenvalues):
     """
     Compute Bryan's probability distribution P[alpha|D,H,M] for averaging.
@@ -152,7 +190,7 @@ if __name__ == "__main__":
     #m *= omega**2
     #m /= np.trapezoid(m, omega)
     # Regularization parameter
-    alpha = np.linspace(1e-1,1e4,100)
+    alpha = np.logspace(4,5,100)
     rho_mem = np.zeros((len(alpha), N_model))
     # Run MEM
     for i in range(len(alpha)):
@@ -177,7 +215,7 @@ if __name__ == "__main__":
     
     P_alpha, alpharegion = compute_P_alpha(alpha, S, L, hessian_eigenvalues)"""
     P_alpha = np.exp(Q - np.max(Q))  # For numerical stability
-    P_alpha /= np.trapz(P_alpha, alpha)  # Normalize
+    P_alpha /= np.trapezoid(P_alpha, alpha)  # Normalize
 
     # Weighted average over alpha
     alpharegion = alpha
