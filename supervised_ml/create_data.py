@@ -11,17 +11,27 @@ from typing import List, Tuple, Callable
 
 # Define the kernel functions
 
-def KL_kernel_Momentum(Momentum, Omega):
+def KL_kernel_Momentum(
+        Momentum, 
+        Omega
+        ):
     Momentum = Momentum[:, np.newaxis]  # Reshape Momentum as column to allow broadcasting
     ker = Omega / (Omega**2 + Momentum**2)  # Element-wise division
     return ker / np.pi 
 
-def KL_kernel_Position_Vacuum(Position, Omega):
+def KL_kernel_Position_Vacuum(
+        Position, 
+        Omega
+        ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     ker = np.exp(-Omega * np.abs(Position))
     return ker
 
-def KL_kernel_Position_FiniteT(Position, Omega,T):
+def KL_kernel_Position_FiniteT(
+        Position, 
+        Omega,
+        T
+        ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     with np.errstate(divide='ignore'):
         ker = np.cosh(Omega * (Position-1/(2*T))) / np.sinh(Omega/2/T)
@@ -31,7 +41,12 @@ def KL_kernel_Position_FiniteT(Position, Omega,T):
         ker[np.isnan(ker)] = 0
     return ker
 
-def KL_kernel_Omega(KL,x,Omega,args=[]):
+def KL_kernel_Omega(
+        KL,
+        x,
+        Omega,
+        args=[]
+        ):
     ret=KL(x, Omega, *args)
     ret[:,Omega==0]=1
     ret=Omega * ret
@@ -42,7 +57,11 @@ def KL_kernel_Omega(KL,x,Omega,args=[]):
         ret[:,Omega==0]=2*args[0]
     return ret
 
-def Di(KL, rhoi, delomega):
+def Di(
+        KL,
+        rhoi, 
+        delomega
+        ):
     # Ensure both tensors are of the same data type (float32)
     KL = np.asarray(KL, dtype=np.float32)  # Cast KL to float32
     rhoi = np.asarray(rhoi, dtype=np.float32)  # Cast rhoi to float32
@@ -58,12 +77,20 @@ def Di(KL, rhoi, delomega):
     return dis
 
 class spectral_functions:
-    def __init__(self, w: np.ndarray, extractedQuantity: str):
+    def __init__(
+            self, 
+            w: np.ndarray, 
+            extractedQuantity: str
+            ):
         self.w = w
         self.extractedQuantity = extractedQuantity
 
     def breit_wigner(
-            self, w: np.ndarray, a: int, m: int, g: int
+            self, 
+            w: np.ndarray, 
+            a: int, 
+            m: int, 
+            g: int
             ) -> np.ndarray:
         if self.extractedQuantity=="RhoOverOmega":
             return 4*a*g/((m**2 + g**2 - w**2)**2 + 4 * g**2 * w**2)
@@ -71,7 +98,11 @@ class spectral_functions:
             return 4*a*g*w/((m**2 + g**2 - w**2)**2 + 4 * g**2 * w**2)
     
     def multiple_breit_wigner(
-            self, w: np.ndarray, a: np.ndarray, m: np.ndarray, g: np.ndarray
+            self, 
+            w: np.ndarray, 
+            a: np.ndarray, 
+            m: np.ndarray, 
+            g: np.ndarray
             ) -> np.ndarray:
         rho = np.zeros(len(w))
         if self.extractedQuantity=="RhoOverOmega":
@@ -86,8 +117,11 @@ class spectral_functions:
             return rho
     
     def step_function(
-            self, w: np.ndarray, threshhold: int, height: float
-        ) -> np.ndarray:
+            self, 
+            w: np.ndarray, 
+            threshhold: int, 
+            height: float
+            ) -> np.ndarray:
         rho = np.zeros(len(w))
         for i in range(len(w)):
             if w[i] >= threshhold:
@@ -98,8 +132,11 @@ class spectral_functions:
             return rho
     
     def sharp_gaussian(
-            self, w: np.ndarray, mu: int, sigma: float
-        ) -> np.ndarray:
+            self, 
+            w: np.ndarray, 
+            mu: int, 
+            sigma: float
+            ) -> np.ndarray:
         rho = w**2 * np.exp(-1/2 *(w-mu)**2/(sigma**2))
         if self.extractedQuantity=="RhoOverOmega":
             return np.divide(rho,w, out=np.zeros_like(rho,dtype=float), where=w!=0)
@@ -107,8 +144,11 @@ class spectral_functions:
             return rho
     
     def non_zero_gaussian_at_origin(
-            self, w: np.ndarray, mu: int, sigma: float
-        ) -> np.ndarray:
+            self, 
+            w: np.ndarray, 
+            mu: int, 
+            sigma: float
+            ) -> np.ndarray:
         rho = 1/np.sqrt(2 *np.pi * sigma) *1/1.5* np.exp(-1/2 * (w-mu)**2/(sigma**2))
         if self.extractedQuantity=="RhoOverOmega":
             return np.divide(rho,w, out=np.zeros_like(rho,dtype=float), where=w!=0)
@@ -116,11 +156,17 @@ class spectral_functions:
             return rho
     
 class ParameterHandler:
-    def __init__(self, paramsDefaultDict: dict):
+    def __init__(
+            self, 
+            paramsDefaultDict: dict
+            ):
         self.allowed_params = paramsDefaultDict.keys()
         self.params = paramsDefaultDict
 
-    def load_from_json(self, config_path: str) -> None:
+    def load_from_json(
+            self, 
+            config_path: str
+            ) -> None:
         if config_path:
             with open(config_path, 'r') as f:
                 data = json.load(f)
@@ -128,40 +174,62 @@ class ParameterHandler:
                 if name in data:
                     self.params[name] = data[name]
 
-    def override_with_args(self, args: argparse.Namespace) -> None:
+    def override_with_args(
+            self, 
+            args: argparse.Namespace
+            ) -> None:
         for name in self.allowed_params:
             val = getattr(args, name, None)
             if val is not None:
                 self.params[name] = val
 
-    def check_parameters(self) -> None:
+    def check_parameters(
+            self
+            ) -> None:
         for name in self.allowed_params:
             if name == "outputFile" and self.params[name] is None:
                 continue
             if name not in self.params or self.params[name] is None:
                 raise ValueError(f"Parameter '{name}' is not set.")
 
-    def load_params(self, config_path: str, args: argparse.Namespace) -> None:
+    def load_params(
+            self, 
+            config_path: str, 
+            args: argparse.Namespace
+            ) -> None:
         self.load_from_json(config_path)
         self.override_with_args(args)
         self.check_parameters()
 
-    def get_params(self) -> dict:
+    def get_params(
+            self
+            ) -> dict:
         return self.params
     
-    def get_verbose(self) -> bool:
+    def get_verbose(
+            self
+            ) -> bool:
         return self.params["verbose"]
     
-    def get_create_data(self) -> bool:
+    def get_create_data(
+            self
+            ) -> bool:
         return self.params["create_data"]
 
 class correlators:
-    def __init__(self, parameterHandler: ParameterHandler):
+    def __init__(
+            self, 
+            parameterHandler: ParameterHandler
+            ):
         self.parameterHandler = parameterHandler
         
     def initKernel(
-            self,extractedQuantity:str,finiteT_kernel:bool,
-            Nt:int,x:np.ndarray,omega:np.ndarray
+            self,
+            extractedQuantity: str,
+            finiteT_kernel: bool,
+            Nt: int,
+            x: np.ndarray,
+            omega: np.ndarray
             ):
         if extractedQuantity=="RhoOverOmega" and finiteT_kernel:
             kernel=KL_kernel_Omega(KL_kernel_Position_FiniteT,x,omega,args=(1/Nt,))
@@ -176,8 +244,11 @@ class correlators:
         return kernel
     
     def correlator(
-        self, w: np.ndarray, tau: np.ndarray, rho: np.ndarray
-        ) -> np.ndarray:
+            self, 
+            w: np.ndarray, 
+            tau: np.ndarray, 
+            rho: np.ndarray
+            ) -> np.ndarray:
         
         kernel = self.initKernel(
             self.parameterHandler.get_params()["extractedQuantity"],
@@ -189,8 +260,9 @@ class correlators:
         return corr
 
     def noise(
-        self, corr: np.ndarray
-        ):
+            self, 
+            corr: np.ndarray
+            ):
         #this error handling is problematic somehow
         if np.all(corr):
             noise = np.random.normal(
@@ -209,8 +281,12 @@ class correlators:
 
 class create_datset:
     def __init__(
-            self, w: np.ndarray, tau: np.ndarray, specfuncs: spectral_functions,
-            corrs: correlators, parameterHandler: ParameterHandler
+            self, 
+            w: np.ndarray, 
+            tau: np.ndarray, 
+            specfuncs: spectral_functions,
+            corrs: correlators, 
+            parameterHandler: ParameterHandler
             ) -> None:
         self.breit_wigner = specfuncs.breit_wigner
         self.mbreit_wigner = specfuncs.multiple_breit_wigner
@@ -223,7 +299,9 @@ class create_datset:
         self.tau = tau
         self.parameterHandler = parameterHandler
 
-    def breit_wigners(self):
+    def breit_wigners(
+            self
+            ):
         one_dat = []
         A = np.linspace(0.1, 0.7, 30)
         M = np.linspace(0.5, 3.0, 30)
@@ -280,7 +358,9 @@ class create_datset:
                     })
         return one_dat, mult_dat
 
-    def non_zeros(self):
+    def non_zeros(
+            self
+            ):
         dat = []
         mu = np.linspace(0, 0.5, 500)
         sigma = np.linspace(0.1, 0.5, 100)
@@ -303,7 +383,9 @@ class create_datset:
                 })
         return dat
 
-    def steps(self):
+    def steps(
+            self
+            ):
         dat = []
         t = np.linspace(self.w[-1]/15, self.w[-1]/2, 500)
         h = np.linspace(0.1, 10, 100)
@@ -326,7 +408,9 @@ class create_datset:
                 })
         return dat
 
-    def peaks(self):
+    def peaks(
+            self
+            ):
         dat = []
         mu = self.w
         sigma = np.linspace(0.001, 0.05, 100)
@@ -349,7 +433,9 @@ class create_datset:
                 })
         return dat
 
-    def dataset(self):
+    def dataset(
+            self
+            ):
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating the datasets.")
@@ -389,8 +475,14 @@ class create_datset:
             print("Files created at:", train_file)
 
 class create_Kades_datset:
-    def __init__(self, w: np.ndarray, tau: np.ndarray, specfuncs: spectral_functions,
-                 corrs: correlators, parameterHandler: ParameterHandler) -> None:
+    def __init__(
+            self, 
+            w: np.ndarray, 
+            tau: np.ndarray, 
+            specfuncs: spectral_functions,
+            corrs: correlators, 
+            parameterHandler: ParameterHandler
+            ) -> None:
         self.breit_wigner = specfuncs.breit_wigner
         self.mbreit_wigner = specfuncs.multiple_breit_wigner
         self.get_corr = corrs.correlator
@@ -400,7 +492,9 @@ class create_Kades_datset:
         self.parameterHandler = parameterHandler
 
 
-    def breit_wigners(self):
+    def breit_wigners(
+            self
+            ):
         one_dat = []
         A = np.linspace(0.1,1,20) # in the paper they use 84 samples
         M = np.linspace(0.5,3,20)
@@ -453,7 +547,9 @@ class create_Kades_datset:
                     })
         return one_dat, mult_dat
 
-    def dataset(self):
+    def dataset(
+            self
+            ):
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating the datasets.")
@@ -490,7 +586,9 @@ class create_Kades_datset:
             print("Files created.")
 
 
-def initializeArgumentParser(paramsDefaultDict: dict) -> argparse.ArgumentParser:
+def initializeArgumentParser(
+        paramsDefaultDict: dict
+        ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="create_data",
         description="Create mock correlators and spectral functions for training of the supervised NN."
@@ -521,7 +619,9 @@ def initializeArgumentParser(paramsDefaultDict: dict) -> argparse.ArgumentParser
         )
     return parser
 
-def main(paramsDefaultDict):
+def main(
+        paramsDefaultDict
+        ):
     parser=initializeArgumentParser(paramsDefaultDict)
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)

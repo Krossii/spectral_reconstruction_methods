@@ -13,17 +13,27 @@ import pprint
 import os
 from typing import List, Tuple, Callable
 
-def KL_kernel_Momentum(Momentum, Omega):
+def KL_kernel_Momentum(
+        Momentum, 
+        Omega
+        ):
     Momentum = Momentum[:, np.newaxis]  # Reshape Momentum as column to allow broadcasting
     ker = Omega / (Omega**2 + Momentum**2)  # Element-wise division
     return ker / np.pi 
 
-def KL_kernel_Position_Vacuum(Position, Omega):
+def KL_kernel_Position_Vacuum(
+        Position, 
+        Omega
+        ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     ker = np.exp(-Omega * np.abs(Position))
     return ker
 
-def KL_kernel_Position_FiniteT(Position, Omega,T):
+def KL_kernel_Position_FiniteT(
+        Position, 
+        Omega,
+        T
+        ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     with np.errstate(divide='ignore'):
         ker = np.cosh(Omega * (Position-1/(2*T))) / np.sinh(Omega/2/T)
@@ -34,7 +44,12 @@ def KL_kernel_Position_FiniteT(Position, Omega,T):
         ker[np.isnan(ker)] = 0
     return ker
 
-def KL_kernel_Omega(KL,x,Omega,args=[]):
+def KL_kernel_Omega(
+        KL,
+        x,
+        Omega,
+        args=[]
+        ):
     ret=KL(x, Omega, *args)
     ret[:,Omega==0]=1
     ret=Omega * ret
@@ -45,7 +60,11 @@ def KL_kernel_Omega(KL,x,Omega,args=[]):
         ret[:,Omega==0]=2*args[0]
     return ret
 
-def Di(KL, rhoi, delomega):
+def Di(
+        KL,
+        rhoi,
+        delomega
+        ):
     # Ensure both tensors are of the same data type (float32)
     KL = tf.cast(KL, dtype=tf.float32)  # Cast KL to float32
     rhoi = tf.cast(rhoi, dtype=tf.float32)  # Cast rhoi to float32
@@ -57,8 +76,14 @@ def Di(KL, rhoi, delomega):
     dis = dis * delomega  # Multiply by delomega
     return dis
 
-class KadesFC(tf.keras.Model):
-    def __init__(self, num_output_nodes: int, **kwargs):
+class KadesFC(
+        tf.keras.Model
+        ):
+    def __init__(
+            self, 
+            num_output_nodes: int, 
+            **kwargs
+            ):
         super(KadesFC, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         self.relu1 = tf.keras.layers.Activation('relu')
@@ -70,30 +95,42 @@ class KadesFC(tf.keras.Model):
         self.relu4 = tf.keras.layers.Activation('relu')
         self.fc4 = tf.keras.layers.Dense(num_output_nodes)
 
-    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+    def call(
+            self, 
+            inputs: tf.Tensor
+            ) -> tf.Tensor:
         x = self.relu1(inputs)
-        
         x = self.fc1(x)
         x = self.relu2(x)
         x = self.fc2(x)
         x = self.relu3(x)
         x = self.fc3(x)
-
         x = self.relu4(x)
         return self.fc4(x)
     
-    def get_config(self):
+    def get_config(
+            self
+            ):
         config = super(KadesFC, self).get_config()
         config.update({"num_output_nodes": self.num_output_nodes})
         return config
     
     @classmethod
-    def from_config(cls, config):
+    def from_config(
+            cls, 
+            config
+            ):
         num_output_nodes = config.pop('num_output_nodes')
         return cls(num_output_nodes=num_output_nodes, **config)
 
-class KadesConv(tf.keras.Model):
-    def __init__(self, num_output_nodes: int, **kwargs):
+class KadesConv(
+        tf.keras.Model
+        ):
+    def __init__(
+            self,
+            num_output_nodes: int, 
+            **kwargs
+            ):
         super(KadesConv, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Conv layer 1
@@ -109,7 +146,10 @@ class KadesConv(tf.keras.Model):
         # Output layer
         self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'relu')
 
-    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+    def call(
+            self, 
+            inputs: tf.Tensor
+            ) -> tf.Tensor:
         inputs = tf.expand_dims(inputs, axis =-1)
         x = self.hidden_layer1(inputs)
         x = self.hidden_layer2(x)
@@ -119,19 +159,30 @@ class KadesConv(tf.keras.Model):
         x = self.hidden_layer4(x)
         return self.output_layer(x)
     
-    def get_config(self):
+    def get_config(
+            self
+            ):
         config = super(KadesConv, self).get_config()
         config.update({"num_output_nodes": self.num_output_nodes})
         return config
     
     @classmethod
-    def from_config(cls, config):
+    def from_config(
+            cls, 
+            config
+            ):
         num_output_nodes = config.pop('num_output_nodes')
         return cls(num_output_nodes=num_output_nodes, **config)
 
 
-class SupervisedNN(tf.keras.Model):
-    def __init__(self, num_output_nodes: int, **kwargs):
+class SupervisedNN(
+    tf.keras.Model
+    ):
+    def __init__(
+            self, 
+            num_output_nodes: int, 
+            **kwargs
+            ):
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Layer 1
@@ -143,31 +194,40 @@ class SupervisedNN(tf.keras.Model):
         # Output layer
         self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'softplus')
 
-    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+    def call(
+            self, 
+            inputs: tf.Tensor
+            ) -> tf.Tensor:
         x = self.hidden_layer1(inputs)
         x = self.hidden_layer2(x)
         x = self.hidden_layer3(x)
         return self.output_layer(x)
     
-    def get_config(self):
+    def get_config(
+            self
+            ):
         config = super(SupervisedNN, self).get_config()
         config.update({"num_output_nodes": self.num_output_nodes})
         return config
     
     @classmethod
-    def from_config(cls, config):
+    def from_config(
+            cls, 
+            config
+            ):
         num_output_nodes = config.pop('num_output_nodes')
         return cls(num_output_nodes=num_output_nodes, **config)
     
 class LossCalculator:
-    def __init__(self, model: tf.keras.Model=None,
-                 std=None,
-                 kernel: tf.Tensor=None,
-                 delomega: tf.Tensor =None,
-                 lambda_s_func: Callable[[int], float]=lambda x:0.0,
-                 lambda_l2_func: Callable[[int], float]=lambda x:0.0
-                 ):
-        
+    def __init__(
+            self, 
+            model: tf.keras.Model=None,
+            std=None,
+            kernel: tf.Tensor=None,
+            delomega: tf.Tensor =None,
+            lambda_s_func: Callable[[int], float]=lambda x:0.0,
+            lambda_l2_func: Callable[[int], float]=lambda x:0.0
+            ):
         self.model = model
         self.std = std
         if self.std is None:
@@ -179,26 +239,36 @@ class LossCalculator:
         self.lambda_s_func = lambda_s_func
         self.lambda_l2_func = lambda_l2_func
 
-    def get_lambda_s(self, epoch: int) -> float:
+    def get_lambda_s(
+            self, 
+            epoch: int
+            ) -> float:
         return self.lambda_s_func(epoch)
     
-    def get_lambda_l2(self, epoch: int) -> float:
+    def get_lambda_l2(
+            self, 
+            epoch: int
+            ) -> float:
         return self.lambda_l2_func(epoch)
 
     def l2_regularization(
-            self, weights: List[tf.Tensor] = None
+            self, 
+            weights: List[tf.Tensor] = None
             ) -> tf.Tensor:
         if weights is None:
             weights = self.model.trainable_weights
         return tf.reduce_sum([tf.nn.l2_loss(w) for w in weights])
     
     def smoothness_loss(
-            self, rho: tf.Tensor = None
+            self, 
+            rho: tf.Tensor = None
             ) -> tf.Tensor:
         return tf.reduce_sum(tf.square(rho[:, 1:] - rho[:, :-1]))
     
     def custom_loss(
-            self, y_pred: tf.Tensor, weighting: tf.Tensor, 
+            self, 
+            y_pred: tf.Tensor, 
+            weighting: tf.Tensor, 
             y_true: tf.Tensor = None
             ) -> tf.Tensor:
         weighting = tf.cast(tf.squeeze(weighting), dtype=tf.float32)
@@ -210,16 +280,22 @@ class LossCalculator:
         return tf.reduce_mean(chi_squared)
     
     def rho_loss(
-            self, rho: tf.Tensor, rho_true: tf.Tensor) -> tf.Tensor:
+            self, 
+            rho: tf.Tensor, 
+            rho_true: tf.Tensor
+            ) -> tf.Tensor:
         rho_true = tf.cast(tf.squeeze(rho_true), dtype=tf.float32)
         rho = tf.cast(tf.squeeze(rho), dtype=tf.float32)
         assert rho.shape == rho_true.shape, "Shape mismatch in rho loss calculation"
         return tf.reduce_mean(tf.square(rho - rho_true))
 
     def total_loss(
-            self, epoch: int,
-            rho: tf.Tensor, y_true: tf.Tensor,
-            err: tf.Tensor, y_pred: tf.Tensor = None,
+            self, 
+            epoch: int,
+            rho: tf.Tensor, 
+            y_true: tf.Tensor,
+            err: tf.Tensor, 
+            y_pred: tf.Tensor = None,
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         y_pred = Di(self.kernel, rho, self.delomega)
@@ -232,16 +308,22 @@ class LossCalculator:
 
 class networkTrainer:
     def __init__(
-            self, model: tf.keras.Model, 
+            self, 
+            model: tf.keras.Model, 
             optimizer: tf.keras.optimizers.Optimizer, 
-            loss_calculator: LossCalculator):
+            loss_calculator: LossCalculator
+            ):
        self.model = model
        self.optimizer = optimizer
        self.loss_calculator = loss_calculator
 
     @tf.function
     def train_step(
-            self, epoch:int, corr: tf.Tensor, err: tf.Tensor, rho_true: tf.Tensor = None
+            self, 
+            epoch: int, 
+            corr: tf.Tensor, 
+            err: tf.Tensor, 
+            rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
             rho = self.model(corr)
@@ -252,15 +334,22 @@ class networkTrainer:
         return total_loss_value, individual_losses
     
     def test_step(
-            self, epoch: int, corr: tf.Tensor, err: tf.Tensor, rho_true: tf.Tensor = None
-        ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
+            self, 
+            epoch: int, 
+            corr: tf.Tensor, 
+            err: tf.Tensor, 
+            rho_true: tf.Tensor = None
+            ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         rho = self.model(corr)
         total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err= err, rho_true = rho_true)
         return total_loss_value, individual_losses
 
     def trainloop(
-        self, dat: tf.data.Dataset,epoch: int, verbose: bool = False
-        ):
+            self, 
+            dat: tf.data.Dataset,
+            epoch: int, 
+            verbose: bool = False
+            ):
         train_losses = []
         train_losses_ind = []
         step = 0
@@ -279,8 +368,11 @@ class networkTrainer:
         return train_losses, train_losses_ind
 
     def testloop(
-        self, dat: tf.data.Dataset,epoch: int, verbose: bool = False
-        ):
+            self, 
+            dat: tf.data.Dataset,
+            epoch: int, 
+            verbose: bool = False
+            ):
         test_losses = []
         test_losses_ind = []
         for X,y,z in dat:
@@ -291,9 +383,10 @@ class networkTrainer:
             print(f'Validation loss: {total_loss_value}')
         return test_losses, test_losses_ind
 
-
     def train(
-            self, num_epochs: int, train_dat: tf.data.Dataset,
+            self, 
+            num_epochs: int, 
+            train_dat: tf.data.Dataset,
             test_dat: tf.data.Dataset,
             verbose: bool = False,
             start_epoch: int = 0
@@ -329,7 +422,9 @@ class networkParameters:
     errorWeighting: bool = False
     networkStructure: str = ""
 
-    def __post_init__(self):
+    def __post_init__(
+            self
+            ):
         # Ensure all entries in lambda_s, lambda_l2 and learning_rate are floats
         if not all(isinstance(item, float) for item in self.lambda_s):
             raise ValueError("All entries in lambda_s must be floats.")
@@ -341,7 +436,9 @@ class networkParameters:
             raise ValueError("All entries in epochs must be integers.")
 
 class supervisedFit:
-    def __init__(self,networkParameters:networkParameters):
+    def __init__(
+            self,networkParameters:networkParameters
+            ):
         self.lambda_s=networkParameters.lambda_s
         self.lambda_l2=networkParameters.lambda_l2
         self.epochs=networkParameters.epochs
@@ -351,8 +448,12 @@ class supervisedFit:
         self.networkStructure=networkParameters.networkStructure
 
     def initKernel(
-            self,extractedQuantity:str,finiteT_kernel:bool,
-            Nt:int,x:np.ndarray,omega:np.ndarray
+            self,
+            extractedQuantity: str,
+            finiteT_kernel: bool,
+            Nt: int,
+            x: np.ndarray,
+            omega: np.ndarray
             ):
         if extractedQuantity=="RhoOverOmega" and finiteT_kernel:
             kernel=KL_kernel_Omega(KL_kernel_Position_FiniteT,x,omega,args=(1/Nt,))
@@ -366,15 +467,23 @@ class supervisedFit:
             raise ValueError("Invalid choice spectral function target")
         return kernel
 
-    def get_data(self, file_dir: str)-> dict:
+    def get_data(
+            self, 
+            file_dir: str
+            )-> dict:
         with open(file_dir, 'rb') as f:
             file = np.load(f, allow_pickle=True)
         return file
             
     def fit_known(
-            self, x: np.ndarray, error: np.ndarray, 
-            correlator: np.ndarray, finiteT_kernel: bool,
-            Nt: int, omega: np.ndarray, model_file: str,
+            self, 
+            x: np.ndarray, 
+            error: np.ndarray, 
+            correlator: np.ndarray, 
+            finiteT_kernel: bool,
+            Nt: int, 
+            omega: np.ndarray, 
+            model_file: str,
             extractedQuantity: str = "RhoOverOmega", 
             ) -> Tuple[np.ndarray, np.ndarray]:
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
@@ -407,9 +516,15 @@ class supervisedFit:
         return np.squeeze(spectralFunction), total_loss, individual_loss
 
     def fitCorrelator(
-            self, x: np.ndarray, error: np.ndarray, 
-            correlator: np.ndarray, finiteT_kernel: bool, 
-            Nt: int, omega: np.ndarray, train_file: str, validation_file: str,
+            self, 
+            x: np.ndarray, 
+            error: np.ndarray, 
+            correlator: np.ndarray, 
+            finiteT_kernel: bool, 
+            Nt: int, 
+            omega: np.ndarray, 
+            train_file: str, 
+            validation_file: str,
             extractedQuantity: str = "RhoOverOmega", 
             verbose: bool = True
             ) -> Tuple[np.ndarray, np.ndarray]:
@@ -443,12 +558,19 @@ class supervisedFit:
         )
 
 
-        def normalize(data, axis=None):
+        def normalize(
+                data, 
+                axis=None
+                ):
             mean = np.mean(data, axis=axis, keepdims=True)
             std = np.std(data, axis=axis, keepdims=True)
             return (data - mean) / (std + 1e-8), mean, std
 
-        def denormalize(data, mean, std):
+        def denormalize(
+                data, 
+                mean, 
+                std
+                ):
             return data * (std + 1e-8) + mean
 
         train_raw = self.get_data(train_file)
@@ -505,11 +627,17 @@ class supervisedFit:
         return np.squeeze(spectralFunction), np.average(val_loss, axis=1), np.average(train_loss, axis=1), modelname
     
 class ParameterHandler:
-    def __init__(self, paramsDefaultDict: dict):
+    def __init__(
+            self, 
+            paramsDefaultDict: dict
+            ):
         self.allowed_params = paramsDefaultDict.keys()
         self.params = paramsDefaultDict
         
-    def load_from_json(self, config_path: str) -> None:
+    def load_from_json(
+            self, 
+            config_path: str
+            ) -> None:
         if config_path:
             with open(config_path, 'r') as f:
                 data = json.load(f)
@@ -517,28 +645,41 @@ class ParameterHandler:
                 if name in data:
                     self.params[name] = data[name]
 
-    def override_with_args(self, args: argparse.Namespace) -> None:
+    def override_with_args(
+            self, 
+            args: argparse.Namespace
+            ) -> None:
         for name in self.allowed_params:
             val = getattr(args, name, None)
             if val is not None:
                 self.params[name] = val
 
-    def check_parameters(self) -> None:
+    def check_parameters(
+            self
+            ) -> None:
         for name in self.allowed_params:
             if name == "outputFile" and self.params[name] is None:
                 continue
             if name not in self.params or self.params[name] is None:
                 raise ValueError(f"Parameter '{name}' is not set.")
 
-    def load_params(self, config_path: str, args: argparse.Namespace) -> None:
+    def load_params(
+            self, 
+            config_path: str, 
+            args: argparse.Namespace
+            ) -> None:
         self.load_from_json(config_path)
         self.override_with_args(args)
         self.check_parameters()
 
-    def get_params(self) -> dict:
+    def get_params(
+            self
+            ) -> dict:
         return self.params
     
-    def getNetworkParams(self) -> networkParameters:
+    def getNetworkParams(
+            self
+            ) -> networkParameters:
         return networkParameters(
             lambda_s=self.params["lambda_s"],
             lambda_l2=self.params["lambda_l2"],
@@ -549,19 +690,29 @@ class ParameterHandler:
             networkStructure=self.params["networkStructure"]
         )
     
-    def get_extractedQuantity(self) -> str:
+    def get_extractedQuantity(
+            self
+            ) -> str:
         return self.params["extractedQuantity"]
     
-    def get_correlator_file(self) -> str:
+    def get_correlator_file(
+            self
+            ) -> str:
         return os.path.abspath(self.params["correlatorFile"])
     
-    def get_training_validation_files(self)-> str:
+    def get_training_validation_files(
+            self
+            )-> str:
         return os.path.abspath(self.params["trainingFile"]), os.path.abspath(self.params["validationFile"])
 
-    def get_verbose(self) -> bool:
+    def get_verbose(
+            self
+            ) -> bool:
         return self.params["verbose"]
     
-    def get_correlator_cols(self) -> List[int]:
+    def get_correlator_cols(
+            self
+            ) -> List[int]:
         correlator_cols = self.params["correlatorCols"]
         if isinstance(correlator_cols, list):
             return correlator_cols
@@ -579,7 +730,10 @@ class ParameterHandler:
         raise ValueError("correlator_cols must be an integer index, list of indices, or a string with a range (e.g., '6:10', '6:', ':10', ':').")
     
 class FitRunner:
-    def __init__(self, parameterHandler: ParameterHandler):
+    def __init__(
+            self, 
+            parameterHandler: ParameterHandler
+            ):
         self.parameterHandler = parameterHandler
         self.net_params = self.parameterHandler.getNetworkParams()
         self.fitter = supervisedFit(self.net_params)
@@ -603,7 +757,14 @@ class FitRunner:
         self.outputDir = os.path.abspath(self.parameterHandler.get_params()["outputDir"])
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
 
-    def extractColumns(self, file: str, x_col: int, mean_col: int, error_col: int, correlator_cols: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def extractColumns(
+            self, 
+            file: str, 
+            x_col: int, 
+            mean_col: int, 
+            error_col: int, 
+            correlator_cols: List[int]
+            ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         data = np.loadtxt(file)
         x = data[:, x_col]
         mean = data[:, mean_col]
@@ -611,8 +772,14 @@ class FitRunner:
         correlator = data[:, correlator_cols]
         return x, mean, error, correlator    
 
-    def run_fit(self, fittedQuantity, messageString ,results: List[np.ndarray], validation_loss_histories: List[np.ndarray],
-                 training_loss_histories: List[np.ndarray]) -> None:
+    def run_fit(
+            self, 
+            fittedQuantity, 
+            messageString,
+            results: List[np.ndarray], 
+            validation_loss_histories: List[np.ndarray],
+            training_loss_histories: List[np.ndarray]
+            ) -> None:
         start_time = time.time()
         print("=" * 40)
         print(messageString)
@@ -638,7 +805,13 @@ class FitRunner:
         return modelname
 
     def pred_res(
-            self, fittedQuantity, messageString, results: List[np.ndarray], loss_histories: List[np.ndarray], model_file: str) -> None:
+            self, 
+            fittedQuantity, 
+            messageString, 
+            results: List[np.ndarray], 
+            loss_histories: List[np.ndarray], 
+            model_file: str
+            ) -> None:
         print("=" * 40)
         print(messageString)
         print("=" * 40)
@@ -657,7 +830,9 @@ class FitRunner:
         results.append(np.squeeze(spectralFunction))
         loss_histories.append(np.insert(np.array(individual_loss), 0, np.array(total_loss)))
     
-    def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
+    def run_fits(
+            self
+            ) -> Tuple[np.ndarray, np.ndarray]:
         results = []
         validation_loss_histories = []
         training_loss_histories = []
@@ -680,7 +855,12 @@ class FitRunner:
         np.array(pred_loss_histories)
         return np.array(results), np.squeeze(training_loss_histories), np.squeeze(validation_loss_histories), np.squeeze(pred_loss_histories)
 
-    def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
+    def calculate_mean_error(
+            self, 
+            mean: np.ndarray, 
+            samples: np.ndarray, 
+            errormethod: str = "jackknife"
+            ) -> np.ndarray:
         N = len(samples)
         fac = N - 1 if errormethod == "jackknife" else 1
         if errormethod not in ["jackknife", "bootstrap"]:
@@ -688,8 +868,13 @@ class FitRunner:
         return np.sqrt(fac / N * np.sum((samples - mean) ** 2, axis=0))
 
     def save_results(
-            self, mean: np.ndarray, error: np.ndarray, samples: np.ndarray, 
-            training_loss_history: np.ndarray, validation_loss_history: np.ndarray, pred_loss_history: np.ndarray
+            self,
+            mean: np.ndarray, 
+            error: np.ndarray, 
+            samples: np.ndarray, 
+            training_loss_history: np.ndarray, 
+            validation_loss_history: np.ndarray, 
+            pred_loss_history: np.ndarray
             ) -> None:
         header = "Omega " + self.extractedQuantity + "_mean"
         if samples is not None and error is not None:
@@ -707,18 +892,28 @@ class FitRunner:
             self.save_loss_history(validation_loss_history, os.path.join(self.outputDir, self.outputFile + ".valloss.dat"))
             self.save_loss_history(pred_loss_history, os.path.join(self.outputDir, self.outputFile + ".predloss.dat"))
 
-    def save_loss_history(self, loss_history: np.ndarray, outputFile: str) -> None:
+    def save_loss_history(
+            self, 
+            loss_history: np.ndarray, 
+            outputFile: str
+            ) -> None:
         header = "mean_total_loss mean_main_loss mean_smoothness_loss mean_l2_loss"
         for i in range(len(loss_history[1:])):
             header += f" sample_{i}_total_loss sample_{i}_main_loss sample_{i}_smoothness_loss sample_{i}_l2_loss"
         reshaped_loss_history = np.squeeze(loss_history)
         np.savetxt(outputFile, reshaped_loss_history, header=header)
 
-    def save_params(self, params: dict, outputFile: str) -> None:
+    def save_params(
+            self, 
+            params: dict, 
+            outputFile: str
+            ) -> None:
         with open(outputFile + '.json', 'w') as f:
             json.dump(params, f, indent=4)
 
-def initializeArgumentParser(paramsDefaultDict: dict) -> argparse.ArgumentParser:
+def initializeArgumentParser(
+        paramsDefaultDict: dict
+        ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="supervisedml",
         description="Train and fit spectral functions to provided correlators using a supervised neural network."
@@ -749,7 +944,9 @@ def initializeArgumentParser(paramsDefaultDict: dict) -> argparse.ArgumentParser
         )
     return parser
 
-def main(paramsDefaultDict):
+def main(
+        paramsDefaultDict
+        ):
     parser=initializeArgumentParser(paramsDefaultDict)
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)

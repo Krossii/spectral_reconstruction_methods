@@ -16,17 +16,27 @@ import os
 import itertools
 from typing import List, Tuple, Callable
 
-def KL_kernel_Momentum(Momentum, Omega):
+def KL_kernel_Momentum(
+        Momentum, 
+        Omega
+        ):
     Momentum = Momentum[:, np.newaxis]  # Reshape Momentum as column to allow broadcasting
     ker = Omega / (Omega**2 + Momentum**2)  # Element-wise division
     return ker / np.pi 
 
-def KL_kernel_Position_Vacuum(Position, Omega):
+def KL_kernel_Position_Vacuum(
+        Position, 
+        Omega
+        ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     ker = np.exp(-Omega * np.abs(Position))
     return ker
 
-def KL_kernel_Position_FiniteT(Position, Omega,T):
+def KL_kernel_Position_FiniteT(
+        Position, 
+        Omega,
+        T
+        ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     with np.errstate(divide='ignore'):
         if Omega[0] == 0:
@@ -40,7 +50,12 @@ def KL_kernel_Position_FiniteT(Position, Omega,T):
         ker[np.isnan(ker)] = 0
     return ker
 
-def KL_kernel_Omega(KL,x,Omega,args=[]):
+def KL_kernel_Omega(
+        KL,
+        x,
+        Omega,
+        args=[]
+        ):
     ret=KL(x, Omega, *args)
     ret[:,Omega==0]=1
     ret=Omega * ret
@@ -51,7 +66,11 @@ def KL_kernel_Omega(KL,x,Omega,args=[]):
         ret[:,Omega==0]=2*args[0]
     return ret
 
-def Di(KL, rhoi, delomega):
+def Di(
+        KL, 
+        rhoi, 
+        delomega
+        ) -> np.ndarray:
     # Ensure both tensors are of the same data type (float32)
     KL = KL.astype(dtype=np.float32)  # Cast KL to float32
     rhoi = rhoi.astype(dtype=np.float32)  # Cast rhoi to float32
@@ -65,7 +84,11 @@ def Di(KL, rhoi, delomega):
     dis = dis * delomega  # Multiply by delomega
     return dis
 
-def get_default_model(w: np.ndarray, defmod: str, file: str = "") -> np.ndarray:
+def get_default_model(
+        w: np.ndarray, 
+        defmod: str, 
+        file: str = ""
+        ) -> np.ndarray:
     def_model = np.ones(len(w))
     if defmod == "constant":
         data = np.loadtxt("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
@@ -91,8 +114,13 @@ def get_default_model(w: np.ndarray, defmod: str, file: str = "") -> np.ndarray:
 
 class mem:
     def __init__(
-            self, omega: np.ndarray, alpha: np.ndarray, def_model: np.ndarray,
-            cov_mat_inv: np.ndarray, Nt: int):
+            self, 
+            omega: np.ndarray, 
+            alpha: np.ndarray, 
+            def_model: np.ndarray,
+            cov_mat_inv: np.ndarray, 
+            Nt: int
+            ):
         self.alpha = alpha
         self.def_model = def_model
         self.w = omega
@@ -101,8 +129,12 @@ class mem:
         self.delomega = self.w[1] - self.w[0]
 
     def initKernel(
-        self,extractedQuantity:str,finiteT_kernel:bool,
-        Nt:int,x:np.ndarray,omega:np.ndarray
+        self,
+        extractedQuantity: str,
+        finiteT_kernel: bool,
+        Nt: int,
+        x: np.ndarray,
+        omega: np.ndarray
         ):
         if extractedQuantity=="RhoOverOmega" and finiteT_kernel:
             kernel=KL_kernel_Omega(KL_kernel_Position_FiniteT,x,omega,args=(1/Nt,))
@@ -116,32 +148,30 @@ class mem:
             raise ValueError("Invalid choice spectral function target")
         return kernel
 
-    def step1(self, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
-        V, xi, U = np.linalg.svd(kernel, full_matrices=False)
-        U= U.T
+    def step1(
+            self, 
+            corr: np.ndarray, 
+            kernel: np.ndarray
+            ) -> np.ndarray:
+        """Minimization of Q = alpha S - L for all alpha as per MEM paper step 1"""
+        U, xi, Vt = np.linalg.svd(kernel.T, full_matrices=False)
         xi = np.array(list(itertools.takewhile(lambda x: x > 1e-10, xi)))
         s = xi.size
-        V = V[:,:s]
+        Vt = Vt[:s,:]
         U = U[:,:s]
         print("Singular space dimension:", s, "down from:", min(self.N_t, len(self.w)))
 
-        VXi = V @ np.diag(xi)
+        VXi = Vt.T @ np.diag(xi)
 
         M = VXi.T @ self.cov_mat_inv @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
         S, L, Q = np.zeros(len(self.alpha)),np.zeros(len(self.alpha)),np.zeros(len(self.alpha))
-        #u_g = np.zeros((M.shape[0]))
-        u_g = np.random.rand(M.shape[0])
-        #u_g[0] = 1
+        u_g = np.zeros((M.shape[0]))
 
         for i in range(len(self.alpha)):
             print(f"Evaluating alpha[{i}] = {self.alpha[i]}")
-            rho_min[i][:], u, success = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
+            rho_min[i][:] = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
             rho = np.clip(rho_min[i][:], 1e-12, None)
-            #if not success:
-            #    plt.plot(self.w, rho, color = "red")
-            #else:
-            #    plt.plot(self.w, rho)
             m = np.clip(self.def_model, 1e-12, None)
             S[i] = np.sum(rho - m - rho * np.log(rho / m))
             G_rho = Di(kernel, rho_min[i][:], self.delomega)
@@ -163,7 +193,14 @@ class mem:
         return rho_min
     
     def minimizer(self,
-                corr: np.ndarray, VXi: np.ndarray, M: np.ndarray, U: np.ndarray, al: float, u_guess: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+                corr: np.ndarray, 
+                VXi: np.ndarray, 
+                M: np.ndarray, 
+                U: np.ndarray, 
+                al: float, 
+                u_guess: np.ndarray, 
+                kernel: np.ndarray
+                ) -> np.ndarray:
         N_s = M.shape[0]
         rho = self.def_model *np.exp(U @ u_guess)
         
@@ -176,18 +213,24 @@ class mem:
         
         def jac(b):
             rho = self.def_model *np.exp(U @ b)
-            J = VXi.T @ self.cov_mat_inv @ VXi @ U.T @ np.diag(rho) @ U
+            J = M @ U.T @ np.diag(rho) @ U
             J += al * np.eye(N_s)
             return J
         
-        sol = root(func, u_guess, jac = jac, method='lm')
+        sol = root(func, u_guess, method='hybr') #took the jacobian out
         u = sol.x
         print(sol.message)
         print(sol.nfev)
         rho = self.def_model * np.exp(U @ u)
-        return rho, sol.x, sol.success
+        return rho
 
-    def step2(self, rho: np.ndarray, corr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    def step2(
+            self, 
+            rho: np.ndarray, 
+            corr: np.ndarray, 
+            kernel: np.ndarray
+            ) -> np.ndarray:
+        """Calculation of P[alpha|D,H,M] as per MEM paper step 2"""
         P_alphaHM = 1/self.alpha
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
         evs = np.zeros((len(self.alpha), len(self.w)))
@@ -251,8 +294,14 @@ class mem:
         return rho_out, P_alphaDHM, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
 
     def step3(
-            self, rho_alpha: np.ndarray, Hess_L: np.ndarray, w_region: np.ndarray, 
-            P_alphaDHM_normed: np.ndarray, alpharegion: np.ndarray) -> np.ndarray:
+            self, 
+            rho_alpha: np.ndarray, 
+            Hess_L: np.ndarray, 
+            w_region: np.ndarray, 
+            P_alphaDHM_normed: np.ndarray, 
+            alpharegion: np.ndarray
+            ) -> np.ndarray:
+        """Error estimation as per MEM paper step 3"""
         Hess_Q = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_Q_inv = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_S = np.zeros((len(self.alpha), len(w_region), len(w_region)))
@@ -284,11 +333,16 @@ class mem:
         return rho_out_var
 
     def fitCorrelator(
-        self, x: np.ndarray, correlator: np.ndarray, finiteT_kernel: bool, 
-        Nt: int, omega: np.ndarray, extractedQuantity: str = "RhoOverOmega", 
+        self, 
+        x: np.ndarray, 
+        correlator: np.ndarray, 
+        finiteT_kernel: bool, 
+        Nt: int, 
+        omega: np.ndarray, 
+        extractedQuantity: str = "RhoOverOmega", 
         verbose: bool = True
         ) -> Tuple[np.ndarray, np.ndarray]:
-
+        """Fit a correlator using the Maximum Entropy Method."""
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
         if verbose:
             print("*"*40)
@@ -315,11 +369,17 @@ class mem:
         return rho_out, error, Prob_dist
 
 class ParameterHandler:
-    def __init__(self, paramsDefaultDict: dict):
+    def __init__(
+            self, 
+            paramsDefaultDict: dict
+            ):
         self.allowed_params = paramsDefaultDict.keys()
         self.params = paramsDefaultDict
         
-    def load_from_json(self, config_path: str) -> None:
+    def load_from_json(
+            self, 
+            config_path: str
+            ) -> None:
         if config_path:
             with open(config_path, 'r') as f:
                 data = json.load(f)
@@ -327,37 +387,56 @@ class ParameterHandler:
                 if name in data:
                     self.params[name] = data[name]
 
-    def override_with_args(self, args: argparse.Namespace) -> None:
+    def override_with_args(
+            self, 
+            args: argparse.Namespace
+            ) -> None:
         for name in self.allowed_params:
             val = getattr(args, name, None)
             if val is not None:
                 self.params[name] = val
 
-    def check_parameters(self) -> None:
+    def check_parameters(
+            self
+            ) -> None:
         for name in self.allowed_params:
             if name == "outputFile" and self.params[name] is None:
                 continue
             if name not in self.params or self.params[name] is None:
                 raise ValueError(f"Parameter '{name}' is not set.")
 
-    def load_params(self, config_path: str, args: argparse.Namespace) -> None:
+    def load_params(
+            self, 
+            config_path: str, 
+            args: argparse.Namespace
+            ) -> None:
         self.load_from_json(config_path)
         self.override_with_args(args)
         self.check_parameters()
 
-    def get_params(self) -> dict:
+    def get_params(
+            self
+            ) -> dict:
         return self.params
     
-    def get_extractedQuantity(self) -> str:
+    def get_extractedQuantity(
+            self
+            ) -> str:
         return self.params["extractedQuantity"]
     
-    def get_correlator_file(self) -> str:
+    def get_correlator_file(
+            self
+            ) -> str:
         return os.path.abspath(self.params["correlatorFile"])
 
-    def get_verbose(self) -> bool:
+    def get_verbose(
+            self
+            ) -> bool:
         return self.params["verbose"]
     
-    def get_correlator_cols(self) -> List[int]:
+    def get_correlator_cols(
+            self
+            ) -> List[int]:
         correlator_cols = self.params["correlatorCols"]
         if isinstance(correlator_cols, list):
             return correlator_cols
@@ -375,7 +454,10 @@ class ParameterHandler:
         raise ValueError("correlator_cols must be an integer index, list of indices, or a string with a range (e.g., '6:10', '6:', ':10', ':').")
 
 class FitRunner:
-    def __init__(self, parameterHandler: ParameterHandler):
+    def __init__(
+            self, 
+            parameterHandler: ParameterHandler
+            ):
         self.parameterHandler = parameterHandler
         self.alpha = np.linspace(
             self.parameterHandler.get_params()["alpha_min"],
@@ -394,7 +476,9 @@ class FitRunner:
             self.parameterHandler.get_params()["omega_max"],
             self.parameterHandler.get_params()["omega_points"]
         )
-        self.default_model = get_default_model(self.omega, self.parameterHandler.get_params()["default_model"], self.parameterHandler.get_params()["default_model_file"])
+        self.default_model = get_default_model(self.omega, 
+                                               self.parameterHandler.get_params()["default_model"], 
+                                               self.parameterHandler.get_params()["default_model_file"])
         self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
         self.verbose = self.parameterHandler.get_verbose()
         self.multiFit = self.parameterHandler.get_params()["multiFit"]
@@ -403,10 +487,20 @@ class FitRunner:
         self.outputDir = os.path.abspath(self.parameterHandler.get_params()["outputDir"])
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
         self.fitter = mem(
-            self.omega, self.alpha, self.default_model, 
-            np.diag(1/self.error**2), self.Nt)
+            self.omega, 
+            self.alpha, 
+            self.default_model, 
+            np.diag(1/self.error**2), 
+            self.Nt)
 
-    def extractColumns(self, file: str, x_col: int, mean_col: int, error_col: int, correlator_cols: List[int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def extractColumns(
+            self, 
+            file: str, 
+            x_col: int, 
+            mean_col: int, 
+            error_col: int, 
+            correlator_cols: List[int]
+            ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         data = np.loadtxt(file)
         x = data[:, x_col]
         mean = data[:, mean_col]
@@ -415,8 +509,13 @@ class FitRunner:
         return x, mean, error, correlator    
 
     def run_single_fit(
-            self, fittedQuantity, messageString ,results: List[np.ndarray] ,
-            errors: List[np.ndarray], probs: List[np.ndarray]) -> None:
+            self, 
+            fittedQuantity, 
+            messageString, 
+            results: List[np.ndarray],
+            errors: List[np.ndarray], 
+            probs: List[np.ndarray]
+            ) -> None:
         start_time = time.time()
         print("=" * 40)
         print(messageString)
@@ -438,7 +537,9 @@ class FitRunner:
         probs.append(prob)
 
     
-    def run_fits(self) -> Tuple[np.ndarray, np.ndarray]:
+    def run_fits(
+            self
+            ) -> Tuple[np.ndarray, np.ndarray]:
         results = []
         errors = []
         probs = []
@@ -448,12 +549,19 @@ class FitRunner:
             self.correlators = self.correlators.T
         n_correlators = self.correlators.shape[0]
         self.run_single_fit(self.mean, "Fitting mean correlator", results, errors, probs)
+
         ############################### this needs to be uncommented later
+
         #for i, corr in enumerate(self.correlators):
         #    self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors, probs)
         return np.array(results), np.array(errors), np.array(probs)
 
-    def calculate_mean_error(self, mean: np.ndarray, samples: np.ndarray, errormethod: str = "jackknife") -> np.ndarray:
+    def calculate_mean_error(
+            self, 
+            mean: np.ndarray, 
+            samples: np.ndarray, 
+            errormethod: str = "jackknife"
+            ) -> np.ndarray:
         N = len(samples)
         fac = N - 1 if errormethod == "jackknife" else 1
         if errormethod not in ["jackknife", "bootstrap"]:
@@ -461,7 +569,10 @@ class FitRunner:
         return np.sqrt(fac / N * np.sum((samples - mean) ** 2, axis=0))
 
     def save_results(
-            self, mean: np.ndarray, error: np.ndarray, samples: np.ndarray, 
+            self, 
+            mean: np.ndarray, 
+            error: np.ndarray, 
+            samples: np.ndarray, 
             prob: np.ndarray
             ) -> None:
         header = "Omega " + self.extractedQuantity + "_mean"
@@ -481,12 +592,18 @@ class FitRunner:
         if self.parameterHandler.get_params()["saveParams"]:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
 
-    def save_params(self, params: dict, outputFile: str) -> None:
+    def save_params(
+            self, 
+            params: dict, 
+            outputFile: str
+            ) -> None:
         with open(outputFile + '.json', 'w') as f:
             json.dump(params, f, indent=4)
 
 
-def initializeArgumentParser(paramsDefaultDict: dict) -> argparse.ArgumentParser:
+def initializeArgumentParser(
+        paramsDefaultDict: dict
+        ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mem",
         description="Fit spectral functions toprovided correlator with the Maximum Entropy Method."
@@ -517,7 +634,9 @@ def initializeArgumentParser(paramsDefaultDict: dict) -> argparse.ArgumentParser
         )
     return parser
 
-def main(paramsDefaultDict):
+def main(
+        paramsDefaultDict
+        ):
     parser=initializeArgumentParser(paramsDefaultDict)
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)

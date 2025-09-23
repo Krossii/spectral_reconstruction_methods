@@ -40,11 +40,17 @@ def initializeArgumentParser(
     return parser
 
 class ParameterHandler:
-    def __init__(self, paramsDefaultDict: dict):
+    def __init__(
+            self, 
+            paramsDefaultDict: dict
+            ):
         self.allowed_params = paramsDefaultDict.keys()
         self.params = paramsDefaultDict
 
-    def load_from_json(self, config_path: str) -> None:
+    def load_from_json(
+            self, 
+            config_path: str
+            ) -> None:
         if config_path:
             with open(config_path, 'r') as f:
                 data = json.load(f)
@@ -52,37 +58,55 @@ class ParameterHandler:
                 if name in data:
                     self.params[name] = data[name]
 
-    def override_with_args(self, args: argparse.Namespace) -> None:
+    def override_with_args(
+            self, 
+            args: argparse.Namespace
+            ) -> None:
         for name in self.allowed_params:
             val = getattr(args, name, None)
             if val is not None:
                 self.params[name] = val
 
-    def check_parameters(self) -> None:
+    def check_parameters(
+            self
+            ) -> None:
         for name in self.allowed_params:
             if name == "outputFile" and self.params[name] is None:
                 continue
             if name not in self.params or self.params[name] is None:
                 raise ValueError(f"Parameter '{name}' is not set.")
     
-    def load_params(self, config_path: str, args: argparse.Namespace) -> None:
+    def load_params(
+            self, 
+            config_path: str, 
+            args: argparse.Namespace
+            ) -> None:
         self.load_from_json(config_path)
         self.override_with_args(args)
         self.check_parameters()
 
-    def get_params(self) -> dict:
+    def get_params(
+            self
+            ) -> dict:
         return self.params
 
-    def get_verbose(self) -> bool:
+    def get_verbose(
+            self
+            ) -> bool:
         return self.params["verbose"]
 
-    def get_blacklisted_dict(self, bvals) -> dict:
+    def get_blacklisted_dict(
+            self, 
+            bvals
+            ) -> dict:
         cleaned_dict = {
                 k:v for k,v in self.params.items() if k not in bvals
         }
         return cleaned_dict
 
-    def write_new_json(self) -> None:
+    def write_new_json(
+            self
+            ) -> None:
         if self.get_params()["cluster"]:
             cluster_path = self.get_params()["clusterpath"]
         if self.params["Method"] == "UnsupervisedNN":
@@ -140,7 +164,9 @@ class ParameterHandler:
             with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
 
-def call_create_data_program(parameterHandler: ParameterHandler):
+def call_create_data_program(
+        parameterHandler: ParameterHandler
+        ):
     if parameterHandler.get_verbose():
         print("*"*40)
         print("Checking for create_data:")
@@ -158,7 +184,9 @@ def call_create_data_program(parameterHandler: ParameterHandler):
             print("Successfully ran data creation.")
 
 
-def call_method_programs(parameterHandler: ParameterHandler):
+def call_method_programs(
+        parameterHandler: ParameterHandler
+        ):
     if parameterHandler.get_verbose():
         print("*"*40)
         print("Calling program for method:")
@@ -192,7 +220,9 @@ def call_method_programs(parameterHandler: ParameterHandler):
             working_dir = "mem/"
         subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd=working_dir).communicate()
 
-def main(paramsDefaultDict):
+def main(
+        paramsDefaultDict
+        ):
     parser=initializeArgumentParser(paramsDefaultDict)
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)
