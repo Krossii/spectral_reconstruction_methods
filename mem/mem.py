@@ -7,6 +7,13 @@ from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 
+from latqcdtools.base.check import ignoreDivideByZero, ignoreInvalidValue, ignoreUnderflow, ignoreOverflow
+from latqcdtools.base.speedify import parallel_function_eval
+ignoreDivideByZero()
+ignoreInvalidValue()
+ignoreUnderflow()
+ignoreOverflow()
+
 import numpy as np
 import json
 import argparse
@@ -91,22 +98,25 @@ def get_default_model(
         ) -> np.ndarray:
     def_model = np.ones(len(w))
     if defmod == "constant":
-        data = np.loadtxt("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
-        exact = data[:,1]
-        m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
-        def_model = np.ones(len(exact))
-        return def_model*m_0
+        if file != "":
+            data = np.loadtxt(file)
+            exact = data[:,1]
+            m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
+            def_model = np.ones(len(exact))
+            return def_model*m_0
+        else:
+            return def_model
     if defmod == "quadratic":
-        data = np.loadtxt("/mnt/c/Users/chris/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
-        exact = data[:,1]
-        m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
-        def_model = m_0* w**2
-        return def_model
-    if defmod == "exact":
-        data = np.loadtxt("/home/Christian/Desktop/mock-data-main/BW/exact_spectral_function_BW.dat")
-        def_model = data[:, 1]
-        return def_model
-    if defmod == "file":
+        if file != "":
+            data = np.loadtxt(file)
+            exact = data[:,1]
+            m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
+            def_model = m_0* w**2
+            return def_model
+        else:
+            def_model = w**2
+            return def_model
+    if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
         def_model = data[:, 1]
         return def_model
@@ -168,9 +178,13 @@ class mem:
         S, L, Q = np.zeros(len(self.alpha)),np.zeros(len(self.alpha)),np.zeros(len(self.alpha))
         u_g = np.zeros((M.shape[0]))
 
+        def getRhoMin(al):
+            return self.minimizer(corr, VXi, M, U, al, u_g, kernel)
+        
+        rho_min_array = parallel_function_eval(getRhoMin, list(range(len(self.alpha))))
+
         for i in range(len(self.alpha)):
-            print(f"Evaluating alpha[{i}] = {self.alpha[i]}")
-            rho_min[i][:] = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
+            rho_min[i][:] = rho_min_array[i]
             rho = np.clip(rho_min[i][:], 1e-12, None)
             m = np.clip(self.def_model, 1e-12, None)
             S[i] = np.sum(rho - m - rho * np.log(rho / m))
@@ -217,7 +231,7 @@ class mem:
             J += al * np.eye(N_s)
             return J
         
-        sol = root(func, u_guess, method='hybr') #took the jacobian out
+        sol = root(func, u_guess, method='broyden1', options = {'maxiter': 10000000}) #took the jacobian out for broyden1
         u = sol.x
         print(sol.message)
         print(sol.nfev)

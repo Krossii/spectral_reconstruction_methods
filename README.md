@@ -171,6 +171,7 @@ Create a JSON file (e.g., `params.json`):
     "alpha_max": 1000,
     "alpha_points": 64,
     "default_model": "exact",
+    "default_model_file": "",
     "omega_min": 0,
     "omega_max": 5,
     "omega_points": 500,
@@ -219,10 +220,11 @@ The following issues are known and still need to be fixed/read through.
 ## Needed Libraries
 
 The following non-standard libraries are needed to run the program:
-- `numpy`
-- `scipy`
-- `tensorflow`
-- `fredipy`
+- `numpy` (general applications)
+- `scipy` (general applications)
+- `tensorflow` (for machine learning)
+- `fredipy` (for the Gaussian method)
+- `latqcdtools` (for parallelization in MEM)
 
 ### Hints on the installation of TensorFlow
 
