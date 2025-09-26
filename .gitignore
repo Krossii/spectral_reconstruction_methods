@@ -11,3 +11,5 @@ quick_plotting.py
 quick_plot.py
 mem/mem_*
 supervised_ml/debug*
+mem/_frames/
+mem/_frames/*

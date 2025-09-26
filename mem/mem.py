@@ -14,6 +14,9 @@ ignoreInvalidValue()
 ignoreUnderflow()
 ignoreOverflow()
 
+
+import imageio
+
 import numpy as np
 import json
 import argparse
@@ -207,18 +210,56 @@ class mem:
         plt.savefig("mem_alpha_scan.png")
         return rho_min
     
-    def minimizer(self,
-                corr: np.ndarray, 
-                VXi: np.ndarray, 
-                M: np.ndarray, 
-                U: np.ndarray, 
-                al: float, 
-                u_guess: np.ndarray, 
-                kernel: np.ndarray
-                ) -> np.ndarray:
+    def minimizer(
+        self,
+        corr: np.ndarray, 
+        VXi: np.ndarray, 
+        M: np.ndarray, 
+        U: np.ndarray, 
+        al: float, 
+        u_guess: np.ndarray, 
+        kernel: np.ndarray
+        ) -> np.ndarray:
         N_s = M.shape[0]
+        def_model = self.def_model
+        omega = self.w
         rho = self.def_model *np.exp(U @ u_guess)
-        
+
+        class GifCallback:
+            def __init__(self, filename="history.gif"):
+                self.filename = filename
+                self.history = []
+                self.frames = []
+                self._tmpdir = "_frames"
+                os.makedirs(self._tmpdir, exist_ok=True)
+
+            def __call__(self, xk, *args):
+                self.history.append(np.copy(xk))
+                self._save_frame(xk)
+
+            def _save_frame(self, xk):
+                fig, ax = plt.subplots()
+                arr = np.array(self.history)
+                rho = def_model * np.exp(U @ xk)
+                ax.plot(omega, rho)
+                ax.set_xlabel("omega")
+                ax.set_ylabel("Spf")
+                ax.set_title(f"Iteration {len(arr)}")
+                ax.legend()
+
+                frame_path = os.path.join(self._tmpdir, f"frame_{len(arr):03d}.png")
+                fig.savefig(frame_path)
+                plt.close(fig)
+                self.frames.append(frame_path)
+
+            def save_gif(self, fps=2):
+                images = [imageio.imread(frame) for frame in self.frames]
+                imageio.mimsave(self.filename, images, fps=fps)
+                # cleanup temporary images
+                for frame in self.frames:
+                    os.remove(frame)
+                os.rmdir(self._tmpdir)
+            
         def func(b):
             rho = self.def_model *np.exp(U @ b)
             G_rho = Di(kernel, rho, self.delomega)
@@ -231,8 +272,9 @@ class mem:
             J = M @ U.T @ np.diag(rho) @ U
             J += al * np.eye(N_s)
             return J
-        
-        sol = root(func, u_guess, method='broyden1', tol = 10e-8, options = {'maxiter': 500000}) #took the jacobian out for broyden1
+
+        callback = GifCallback("live_history.gif")
+        sol = root(func, u_guess, callback = callback, method='broyden1', tol = 10e-8, options = {'maxiter': 20000}) #took the jacobian out for broyden1
         u = sol.x
         print(sol.message)
         print(sol.nfev)
