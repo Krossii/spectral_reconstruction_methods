@@ -197,6 +197,7 @@ class mem:
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:], label = f"alpha = {self.alpha[i]}")
+        plt.ylim(-0.1,3)
         plt.subplot(1,2,2)
         plt.plot(self.alpha, self.alpha *S, label = "- alpha S")
         plt.plot(self.alpha, L, label = "L")
@@ -231,7 +232,7 @@ class mem:
             J += al * np.eye(N_s)
             return J
         
-        sol = root(func, u_guess, method='broyden1', options = {'maxiter': 10000000}) #took the jacobian out for broyden1
+        sol = root(func, u_guess, method='broyden1', tol = 10e-8, options = {'maxiter': 500000}) #took the jacobian out for broyden1
         u = sol.x
         print(sol.message)
         print(sol.nfev)
