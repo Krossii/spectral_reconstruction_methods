@@ -173,7 +173,7 @@ def generate_dataset(n_samples=20000, Np=100, Nw=500, max_bws=3, noise_sigma=1e-
         rho = random_spectrum(omega_grid, n_bws=nbw)
         G = K @ rho
         # add gaussian noise to propagator (smaller sigma to avoid instability)
-        G_noisy = G + np.random.normal(scale=noise_sigma, size=G.shape)
+        G_noisy = G + np.random.normal(scale=noise_sigma, size=G.shape)*G 
         # clip and nan-safe
         G_noisy = np.nan_to_num(G_noisy, nan=0.0, posinf=1e6, neginf=0.0)
         X[i,:] = G_noisy.astype(np.float32)
@@ -191,13 +191,13 @@ def generate_dataset(n_samples=20000, Np=100, Nw=500, max_bws=3, noise_sigma=1e-
 # ---------------------------
 if __name__ == '__main__':
     # hyperparams 
-    Np = 100
+    Np = 16
     Nw = 500 
-    n_train = 50000
-    n_val = 10000
+    n_train = 5000
+    n_val = 1000
     batch_size = 64
-    n_epochs = 100
-    alpha = 1.0         # much smaller alpha to avoid huge gradients
+    n_epochs = 50
+    alpha = 1.0         
     lr = 1e-5           # smaller learning rate
     clipnorm = 1.0
 
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     # generate dataset
     X, Y, p_or_t_grid, omega_grid, K = generate_dataset(n_samples=n_train+n_val,
                                                          Np=Np, Nw=Nw, max_bws=1,
-                                                         noise_sigma=1e-4, seed=42,
+                                                         noise_sigma=10e-4, seed=42,
                                                          kernel_mode=kernel_mode)
     X_train, X_val = X[:n_train], X[n_train:]
     Y_train, Y_val = Y[:n_train], Y[n_train:]
@@ -260,6 +260,7 @@ if __name__ == '__main__':
     plt.scatter(p_or_t_grid, K @ rho_pred, label='reconstructed G', marker = 'x', color='green', s=10, alpha=0.7)
     plt.xlabel('t' if kernel_mode=='position' else 'p')
     plt.ylabel('G')
+    plt.yscale("log")
     plt.legend()
     plt.title('Input propagator')
     plt.tight_layout()

@@ -238,14 +238,34 @@ class mem:
                 self._save_frame(xk)
 
             def _save_frame(self, xk):
-                fig, ax = plt.subplots()
+                fig, (ax1, ax2) = plt.subplots(1,2, figsize = (16,4))
                 arr = np.array(self.history)
                 rho = def_model * np.exp(U @ xk)
-                ax.plot(omega, rho)
-                ax.set_xlabel("omega")
-                ax.set_ylabel("Spf")
-                ax.set_title(f"Iteration {len(arr)}")
-                ax.legend()
+                a,g,m = 1,1,1
+                exact = (4 * a * g * omega) / (4 * g**2 * omega**2 + (g**2 + m**2 - omega**2)**2)
+                ax1.plot(omega, rho, label = "Prediction")
+                ax1.plot(omega, def_model, label = "Default model")
+                ax1.plot(omega, exact, label = "Exact")
+                ax1.set_xlabel("omega")
+                ax1.set_ylabel("Spf")
+                ax1.set_title(f"Iteration {len(arr)}")
+                ax1.legend(loc = "upper right")
+
+                Nt = 16
+                tau = np.arange(Nt)
+                delomega = omega[1]- omega[0]
+                kernel = KL_kernel_Omega(KL_kernel_Position_FiniteT, tau, omega, args = (1/Nt,))
+                G_pred = Di(kernel, rho, delomega)
+                G_def_model = Di(kernel, def_model, delomega)
+
+                ax2.scatter(tau, G_pred, label = "Prediction", marker = 'x')
+                ax2.scatter(tau, G_def_model, label = "Default model", marker = 'x')
+                ax2.scatter(tau, corr, label = "Exact", marker = 'x')
+                ax2.set_xlabel("tau")
+                ax2.set_ylabel("corr")
+                ax2.set_yscale("log")
+                ax2.set_title(f"Iteration {len(arr)}")
+                ax2.legend(loc = "upper right")
 
                 frame_path = os.path.join(self._tmpdir, f"frame_{len(arr):03d}.png")
                 fig.savefig(frame_path)
@@ -274,7 +294,8 @@ class mem:
             return J
 
         callback = GifCallback("live_history.gif")
-        sol = root(func, u_guess, callback = callback, method='broyden1', tol = 10e-8, options = {'maxiter': 20000}) #took the jacobian out for broyden1
+        sol = root(func, u_guess, callback = callback, method='broyden1', tol = 10e-7, options = {'maxiter': 200}) #took the jacobian out for broyden1
+        callback.save_gif(fps=2)
         u = sol.x
         print(sol.message)
         print(sol.nfev)
@@ -642,10 +663,11 @@ class FitRunner:
         else:
             writeData = np.column_stack((self.omega, mean))
         np.savetxt(os.path.join(self.outputDir, self.outputFile), writeData, header=header)
-        prob_header = "alpha Probability_distribution"
+        """prob_header = "alpha Probability_distribution"
         if prob is not None and len(prob) == len(self.alpha):
             probData = np.column_stack((self.alpha, prob))
-            np.savetxt(os.path.join(self.outputDir, self.outputFile + "_prob"), probData, header=prob_header)
+            np.savetxt(os.path.join(self.outputDir, self.outputFile + "_prob"), probData, header=prob_header)"""
+        ########### comment this back in
         if self.parameterHandler.get_params()["saveParams"]:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
 
@@ -706,8 +728,8 @@ def main(
 
     fitRunner = FitRunner(parameterHandler)
     results, error, prob = fitRunner.run_fits()
-    if len(np.squeeze(prob)) <= 1:
-        prob = None
+    #if len(np.squeeze(prob)) <= 1:
+    #    prob = None
     mean = results[0]
     if len(results)>1:
         samples = results[1:]
