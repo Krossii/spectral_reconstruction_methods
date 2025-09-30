@@ -126,32 +126,49 @@ def spectral_mse(y_true, y_pred):
     return tf.reduce_mean(se)
 
 
-def make_propagator_mse_loss(kernel_np):
+def smooth_loss(y_pred):
+    y_pred = tf.cast(y_pred, tf.float32)
+    return tf.reduce_sum(tf.square(y_pred[:, 1:] - y_pred[:, :-1]))
+
+################## update this part so that it respects the error
+def make_propagator_chisq_loss(kernel_np):
     K = tf.constant(kernel_np.astype(np.float32))  # (N_pts, Nw)
 
-    def propagator_mse(y_true_rho, y_pred_rho):
+    def propagator_chisq(y_true_rho_and_err, y_pred_rho):
+        # y_true_rho_and_err contains concatenated [rho_true, errors]
+        n_w = tf.shape(y_pred_rho)[1]
+        rho_true =y_true_rho_and_err[:, :n_w]
+        sigma =y_true_rho_and_err[:, n_w:]
+        
         # enforce float32
-        y_true_rho = tf.cast(y_true_rho, tf.float32)
+        rho_true = tf.cast(rho_true, tf.float32)
+        sigma = tf.cast(sigma, tf.float32)
         y_pred_rho = tf.cast(y_pred_rho, tf.float32)
         # clip predictions to avoid huge values
         y_pred_rho = tf.clip_by_value(y_pred_rho, 0.0, 1e6)
 
         # G = rho @ K^T  -> (batch, N_pts)
         G_pred = tf.matmul(y_pred_rho, tf.transpose(K))
-        G_true = tf.matmul(y_true_rho, tf.transpose(K))
+        G_true = tf.matmul(rho_true, tf.transpose(K))
 
-        diff = tf.math.squared_difference(G_true, G_pred)
-        diff = tf.where(tf.math.is_finite(diff), diff, tf.zeros_like(diff))
-        return tf.reduce_mean(diff)
+        diff2 = tf.math.squared_difference(G_true, G_pred)
+        chisq = diff2 / (sigma**2 + 1e-12)
+        chisq = tf.where(tf.math.is_finite(chisq), chisq, tf.zeros_like(chisq))
+        return tf.reduce_mean(chisq)
 
-    return propagator_mse
+    return propagator_chisq
 
 
-def combined_loss(alpha, kernel_np):
-    prop_loss = make_propagator_mse_loss(kernel_np)
+def combined_loss(alpha, beta, kernel_np):
+    prop_loss = make_propagator_chisq_loss(kernel_np)
     def loss(y_true, y_pred):
-        return spectral_mse(y_true, y_pred) + alpha * prop_loss(y_true, y_pred)
+        return spectral_mse(y_true[:,:tf.shape(y_pred)[1]], y_pred) + alpha * prop_loss(y_true, y_pred) #+ beta * smooth_loss(y_pred)
     return loss
+
+
+def spectral_metric(y_true, y_pred):
+    n_w = tf.shape(y_pred)[1]
+    return spectral_mse(y_true[:,:n_w], y_pred)
 
 # ---------------------------
 # Dataset creation
@@ -162,29 +179,33 @@ def generate_dataset(n_samples=20000, Np=100, Nw=500, max_bws=3, noise_sigma=1e-
     np.random.seed(seed)
     # grids
     p_or_t_grid = np.arange(Np)
-    omega_grid = np.linspace(1e-4, 10.0, Nw)   # start > 0 to avoid exact zeros
+    omega_grid = np.linspace(0, 10.0, Nw)   # start > 0 to avoid exact zeros
     K = build_kernel(p_or_t_grid, omega_grid, mode=kernel_mode)  # shape (Np, Nw)
 
     X = np.zeros((n_samples, Np), dtype=np.float32)   # propagators
     Y = np.zeros((n_samples, Nw), dtype=np.float32)   # spectra (ground truth)
+    E = np.zeros((n_samples, Np), dtype=np.float32)
 
     for i in range(n_samples):
         nbw = np.random.randint(1, max_bws+1)
         rho = random_spectrum(omega_grid, n_bws=nbw)
         G = K @ rho
         # add gaussian noise to propagator (smaller sigma to avoid instability)
-        G_noisy = G + np.random.normal(scale=noise_sigma, size=G.shape)*G 
+        noise = np.random.normal(scale=noise_sigma, size=G.shape)
+        G_noisy = G + noise 
+        sigma = np.abs(G) * 0.05 +1e-4
         # clip and nan-safe
         G_noisy = np.nan_to_num(G_noisy, nan=0.0, posinf=1e6, neginf=0.0)
         X[i,:] = G_noisy.astype(np.float32)
         Y[i,:] = rho.astype(np.float32)
+        E[i,:] = sigma.astype(np.float32)
 
     # optional normalization: scale X to unit std per feature to help training
-    mean_X = np.mean(X, axis=0, keepdims=True)
-    std_X = np.std(X, axis=0, keepdims=True) + 1e-12
-    X = (X - mean_X) / std_X
+    #mean_X = np.mean(X, axis=0, keepdims=True)
+    #std_X = np.std(X, axis=0, keepdims=True) + 1e-12
+    #X = (X - mean_X) / std_X
 
-    return (X, Y, p_or_t_grid, omega_grid, K)
+    return (X, Y, E, p_or_t_grid, omega_grid, K)
 
 # ---------------------------
 # Example training run
@@ -196,8 +217,9 @@ if __name__ == '__main__':
     n_train = 5000
     n_val = 1000
     batch_size = 64
-    n_epochs = 50
-    alpha = 1.0         
+    n_epochs = 1000
+    alpha = 1.0        
+    beta = 1.0 
     lr = 1e-5           # smaller learning rate
     clipnorm = 1.0
 
@@ -205,25 +227,28 @@ if __name__ == '__main__':
     kernel_mode = 'position'
 
     # generate dataset
-    X, Y, p_or_t_grid, omega_grid, K = generate_dataset(n_samples=n_train+n_val,
+    X, Y, E, p_or_t_grid, omega_grid, K = generate_dataset(n_samples=n_train+n_val,
                                                          Np=Np, Nw=Nw, max_bws=1,
                                                          noise_sigma=10e-4, seed=42,
                                                          kernel_mode=kernel_mode)
+
+    Y_concat = np.concatenate([Y, E], axis=1)
+    
     X_train, X_val = X[:n_train], X[n_train:]
-    Y_train, Y_val = Y[:n_train], Y[n_train:]
+    Y_train, Y_val = Y_concat[:n_train], Y_concat[n_train:]
 
     # build model (use 'small' variant for stability; switch to 'paper' if you have large GPU)
     model = build_ponet_fc(input_dim=Np, output_dim=Nw, center_variant='small', dropout_rate=0.05)
     model.summary()
 
     # compile with combined loss L_rho + alpha L_G
-    loss_fn = combined_loss(alpha=alpha, kernel_np=K)
+    loss_fn = combined_loss(alpha=alpha, beta = beta, kernel_np=K)
     opt = optimizers.Adam(learning_rate=lr, clipnorm=clipnorm)
-    model.compile(optimizer=opt, loss=loss_fn, metrics=[spectral_mse])
+    model.compile(optimizer=opt, loss=loss_fn, metrics=[spectral_metric])
 
     # add callbacks
     cb = [tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-8),
-          tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=6, restore_best_weights=True)]
+          tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)]
 
     # train
     hist = model.fit(X_train, Y_train,
@@ -235,7 +260,8 @@ if __name__ == '__main__':
     # evaluate on a sample
     idx = np.random.randint(0, X_val.shape[0])
     x_sample = X_val[idx:idx+1]
-    rho_true = Y_val[idx]
+    rho_true = Y_val[idx, :Nw]
+    y_err = Y_val[idx, Nw:]
     rho_pred = model.predict(x_sample)[0]
 
     # plot comparison
@@ -256,7 +282,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.title('Training history')
     plt.subplot(1,3,3)
-    plt.scatter(p_or_t_grid, x_sample[0], label='input G', marker = 'x', color='orange', s=10)
+    plt.errorbar(p_or_t_grid, x_sample[0], yerr = abs(y_err), label='input G', fmt = 'x', markeredgewidth = 1, elinewidth= 1, capsize= 1, color='orange')
     plt.scatter(p_or_t_grid, K @ rho_pred, label='reconstructed G', marker = 'x', color='green', s=10, alpha=0.7)
     plt.xlabel('t' if kernel_mode=='position' else 'p')
     plt.ylabel('G')

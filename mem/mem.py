@@ -16,6 +16,7 @@ ignoreOverflow()
 
 
 import imageio
+import imageio.v2 as imageio
 
 import numpy as np
 import json
@@ -294,8 +295,8 @@ class mem:
             return J
 
         callback = GifCallback("live_history.gif")
-        sol = root(func, u_guess, callback = callback, method='broyden1', tol = 10e-7, options = {'maxiter': 200}) #took the jacobian out for broyden1
-        callback.save_gif(fps=2)
+        sol = root(func, u_guess, callback = callback, method='broyden1', tol = 10e-7, options = {'maxiter': 1000}) #took the jacobian out for broyden1
+        callback.save_gif(fps=12)
         u = sol.x
         print(sol.message)
         print(sol.nfev)
