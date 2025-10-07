@@ -1,3 +1,4 @@
+import scipy
 from scipy import integrate
 from scipy.linalg import solve
 from scipy.optimize import root
@@ -40,7 +41,7 @@ def KL_kernel_Position_Vacuum(
         Omega
         ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-    ker = np.exp(-Omega * np.abs(Position))
+    ker = np.exp(-Omega * np.abs(Position)) + np.exp(-Omega*(len(Position)-Position))
     return ker
 
 def KL_kernel_Position_FiniteT(
@@ -105,7 +106,7 @@ def get_default_model(
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
+            m_0 = np.trapezoid(exact, x=w)/np.trapezoid(np.ones(len(exact)), x=w)
             def_model = np.ones(len(exact))
             return def_model*m_0
         else:
@@ -114,7 +115,7 @@ def get_default_model(
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapezoid(exact *w**2, x=w) / (np.trapezoid(w**2, x=w))
+            m_0 = np.trapezoid(exact, x=w) / (np.trapezoid(w**2, x=w))
             def_model = m_0* w**2
             return def_model
         else:
@@ -123,7 +124,7 @@ def get_default_model(
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
         def_model = data[:, 1]
-        return def_model
+        return def_model + 0.1*w
     raise ValueError("Invalid choice of default model")
 
 class mem:
@@ -141,6 +142,7 @@ class mem:
         self.N_t = Nt
         self.cov_mat_inv = cov_mat_inv
         self.delomega = self.w[1] - self.w[0]
+        self.tau = np.arange(Nt)
 
     def initKernel(
         self,
@@ -180,33 +182,33 @@ class mem:
         M = VXi.T @ self.cov_mat_inv @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
         S, L, Q = np.zeros(len(self.alpha)),np.zeros(len(self.alpha)),np.zeros(len(self.alpha))
-        u_g = np.zeros((M.shape[0]))
+        #u_g = np.zeros((M.shape[0]))
+        #u_g[0]=1
+        u_g = np.random.rand(M.shape[0]) 
 
         def getRhoMin(al):
             return self.minimizer(corr, VXi, M, U, al, u_g, kernel)
         
+
         rho_min_array = parallel_function_eval(getRhoMin, list(range(len(self.alpha))))
 
+
         for i in range(len(self.alpha)):
-            rho_min[i][:] = rho_min_array[i]
-            rho = np.clip(rho_min[i][:], 1e-12, None)
-            m = np.clip(self.def_model, 1e-12, None)
-            S[i] = np.sum(rho - m - rho * np.log(rho / m))
-            G_rho = Di(kernel, rho_min[i][:], self.delomega)
-            diff = G_rho - corr
-            L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
-            Q[i] = self.alpha[i] * S[i] - L[i]
+            rho_min_array = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
+            rho_min[i][:] = rho_min_array#[i]
+            G_rho = Di(kernel, rho_min[i][:]/(2*np.pi), self.delomega)
 
         plt.figure(1, figsize=(12,4))
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:], label = f"alpha = {self.alpha[i]}")
+        plt.plot(self.w, self.def_model, label = "Default model", color = "black", linestyle = "--")
         plt.ylim(-0.1,3)
         plt.subplot(1,2,2)
-        plt.plot(self.alpha, self.alpha *S, label = "- alpha S")
-        plt.plot(self.alpha, L, label = "L")
-        plt.plot(self.alpha, Q, label = "Q")
+        plt.scatter(self.tau, corr, label = "Data", marker = "x")
+        plt.scatter(self.tau, G_rho, label = "Prediction", marker = "x")
         plt.legend()
+        plt.yscale("log")
         plt.tight_layout()
         plt.savefig("mem_alpha_scan.png")
         return rho_min
@@ -227,7 +229,8 @@ class mem:
         rho = self.def_model *np.exp(U @ u_guess)
 
         class GifCallback:
-            def __init__(self, filename="history.gif"):
+            def __init__(self, mem_class, filename="history.gif"):
+                self.mem = mem_class
                 self.filename = filename
                 self.history = []
                 self.frames = []
@@ -242,11 +245,14 @@ class mem:
                 fig, (ax1, ax2) = plt.subplots(1,2, figsize = (16,4))
                 arr = np.array(self.history)
                 rho = def_model * np.exp(U @ xk)
+                #rho_hist = []
+                #rho_hist.append(rho)
+                #rho_history = np.array(rho_hist)
                 a,g,m = 1,1,1
                 exact = (4 * a * g * omega) / (4 * g**2 * omega**2 + (g**2 + m**2 - omega**2)**2)
                 ax1.plot(omega, rho, label = "Prediction")
-                ax1.plot(omega, def_model, label = "Default model")
-                ax1.plot(omega, exact, label = "Exact")
+                ax1.plot(omega, def_model, label = "Default model", alpha = 0.5)
+                ax1.plot(omega, exact, label = "Exact", alpha = 0.5)
                 ax1.set_xlabel("omega")
                 ax1.set_ylabel("Spf")
                 ax1.set_title(f"Iteration {len(arr)}")
@@ -255,9 +261,12 @@ class mem:
                 Nt = 16
                 tau = np.arange(Nt)
                 delomega = omega[1]- omega[0]
-                kernel = KL_kernel_Omega(KL_kernel_Position_FiniteT, tau, omega, args = (1/Nt,))
-                G_pred = Di(kernel, rho, delomega)
-                G_def_model = Di(kernel, def_model, delomega)
+                kernel = KL_kernel_Position_FiniteT(tau, omega, 1/Nt)
+                G_pred = Di(kernel, rho/(2*np.pi), delomega)
+                G_def_model = Di(kernel, def_model/(2*np.pi), delomega)
+                #G_pred_hist = []
+                #G_pred_hist.append(G_pred)
+                #G_pred_history = np.array(G_pred_hist)
 
                 ax2.scatter(tau, G_pred, label = "Prediction", marker = 'x')
                 ax2.scatter(tau, G_def_model, label = "Default model", marker = 'x')
@@ -267,6 +276,21 @@ class mem:
                 ax2.set_yscale("log")
                 ax2.set_title(f"Iteration {len(arr)}")
                 ax2.legend(loc = "upper right")
+                
+                """S,L,Q = np.zeros(rho_history.shape[1]), np.zeros(rho_history.shape[1]), np.zeros(rho_history.shape[1])
+                for i in range(rho_history.shape[1]):
+                    S[i] = np.sum(rho_history[:,i] - def_model - rho_history[:,1] * np.log(rho_history[:,1]/def_model))
+                    L[i] = 0.5 * np.sum((corr - G_pred_history[:,1]) @ self.mem.cov_mat_inv @ (corr - G_pred_history[:,1]))
+                    Q[i] = al*S[i] - L[i]
+                
+                for i in range(rho_history.shape[1]):
+                    ax3.scatter(range(len(rho_history)), Q[i], marker= "x")
+                    #ax3.scatter(range(len(rho_history)), S[i], marker= "x")
+                    #ax3.scatter(range(len(rho_history)), L[i], marker= "x")
+                ax3.set_xlabel("Iteration")
+                ax3.set_ylabel("Value")
+                ax3.set_title(f"Iteration {len(arr)}")
+                ax3.legend(loc = "upper right")"""
 
                 frame_path = os.path.join(self._tmpdir, f"frame_{len(arr):03d}.png")
                 fig.savefig(frame_path)
@@ -283,24 +307,46 @@ class mem:
             
         def func(b):
             rho = self.def_model *np.exp(U @ b)
-            G_rho = Di(kernel, rho, self.delomega)
+            G_rho = Di(kernel, rho/(2*np.pi), self.delomega)
             g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
             f = -al * b - g
             return f
         
         def jac(b):
             rho = self.def_model *np.exp(U @ b)
-            J = M @ U.T @ np.diag(rho) @ U
-            J += al * np.eye(N_s)
+            #J = M @ U.T @ np.diag(rho) @ U
+            #J += al * np.eye(N_s)
+            diag_rho_U = np.diag(rho /(2*np.pi)) @ U
+            A = (kernel @ diag_rho_U) * self.delomega
+            J_nonlinear = VXi.T @ self.cov_mat_inv @ A
+            J = -al * np.eye(N_s) - J_nonlinear
             return J
 
-        callback = GifCallback("live_history.gif")
-        sol = root(func, u_guess, callback = callback, method='broyden1', tol = 10e-7, options = {'maxiter': 1000}) #took the jacobian out for broyden1
-        callback.save_gif(fps=12)
+        #callback = GifCallback(self, "live_history.gif")
+        #sol = root(func, u_guess, callback = callback, method='broyden1', options = {'maxiter': 1000, 'disp': True}) #took the jacobian out for broyden1
+        #tol = 10e-10
+        #callback.save_gif(fps=12)
+
+        rho_guess = self.def_model * np.exp(U @ u_guess)
+        G_rho_guess = Di(kernel, rho_guess/(2*np.pi), self.delomega)
+        diff_guess = G_rho_guess - corr
+        g_guess = VXi.T @ self.cov_mat_inv @ diff_guess
+        print(f"alpha: {al:.3e}")
+        print(f"||G-r|| = {np.linalg.norm(diff_guess):.3e}, ||VXi^T cov_inv (G-r)|| = {np.linalg.norm(g_guess):.3e}")
+        # --- end diagnostics ---
+        print("Residual norm before solve", np.linalg.norm(func(u_guess)))
+        sol = root(func, u_guess, jac=jac, method='lm')
+        res_norm = np.linalg.norm(func(sol.x))
+        print("Solver message:", sol.message)
+        print("Number of function evaluations:", getattr(sol, "nfev", None))
+        print("Residual norm after solve:", res_norm)
+
         u = sol.x
-        print(sol.message)
-        print(sol.nfev)
         rho = self.def_model * np.exp(U @ u)
+        G_pred = Di(kernel, rho/(2*np.pi), self.delomega)
+        S = np.sum(rho - def_model - rho * np.nan_to_num(np.log(rho/def_model), neginf = -1e300))
+        L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
+        print("S, L, Q:", S, L, al*S-L)
         return rho
 
     def step2(
@@ -310,20 +356,29 @@ class mem:
             kernel: np.ndarray
             ) -> np.ndarray:
         """Calculation of P[alpha|D,H,M] as per MEM paper step 2"""
-        P_alphaHM = 1/self.alpha
+        P_alphaHM = 1
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
         evs = np.zeros((len(self.alpha), len(self.w)))
+        #print(scipy.linalg.issymmetric(self.cov_mat_inv @ kernel))
         Hess_mat = kernel.T @ self.cov_mat_inv @ kernel
         for i in range(len(self.alpha)):
             lam_mat = np.sqrt(np.diag(rho[i][:])) @ Hess_mat @ np.sqrt(np.diag(rho[i][:]))
             eigval, eigvec = np.linalg.eigh(lam_mat)
             evs[i][:] = eigval
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
-            G = Di(kernel, rho[i][:], self.delomega)
-            diff = G - corr
-            L[i] = 0.5 * diff @ self.cov_mat_inv @ diff
+            G = Di(kernel, rho[i][:]/(2*np.pi), self.delomega)
+            diff = corr - G
+            L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
+            if np.any(eigval <= 0):
+                print("Warning: Non-positive eigenvalue encountered, setting it to 1e-10")
+                eigval[eigval <= 0] = 1e-10
             prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
-            exp[i] = prefactor[i] *np.exp(self.alpha[i] * S[i] - L[i])
+            exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
+        exp_int = np.trapezoid(exp, self.alpha)
+        if exp_int == 0:
+            print("Warning: Integral of exp is zero, setting to 1 to avoid NaNs")
+            exp_int = 1
+        exp /= exp_int
         P_alphaDHM = P_alphaHM * exp
         plt.figure(2, figsize=(15,5))
         plt.subplot(1,3,1)
@@ -352,7 +407,7 @@ class mem:
 
         alpha_ind = []
         for i in range(len(self.alpha)):
-            if P_alphaDHM[i] >= 10e-1 * P_alphaDHM.max():
+            if P_alphaDHM[i] >= 10e-8 * P_alphaDHM.max():
                 alpha_ind.append(i)
         alpha_int = np.zeros(len(alpha_ind))
         rho_red = np.zeros((len(alpha_ind), len(self.w)))
@@ -565,12 +620,14 @@ class FitRunner:
         self.Nt = self.parameterHandler.get_params()["Nt"] or len(self.x)
         self.outputDir = os.path.abspath(self.parameterHandler.get_params()["outputDir"])
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
+        cov = np.diag(self.error ** 2)
+        cov_inv = np.linalg.inv(cov)
         self.fitter = mem(
-            self.omega, 
-            self.alpha, 
-            self.default_model, 
-            np.diag(1/self.error**2), 
-            self.Nt)
+             self.omega,
+             self.alpha,
+             self.default_model,
+             cov_inv,
+             self.Nt)
 
     def extractColumns(
             self, 
