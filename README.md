@@ -115,8 +115,8 @@ The following parameters can be specified in the JSON file or as command line ar
 | **optimizer**        | `False`              | `True`, `False`                         | Specific to `"Gaussian"`: Wether the kernel parameters should be optimized with L-BFGS-B. |
 | **variance**        | `0.3`              | Any float                         | Specific to `"Gaussian"`: The variance of the kernel |
 | **lengthscale**        | `0.4`              | Any float                         | Specific to `"Gaussian"`: The lengthscale of the kernel |
-| **alpha_min**        | `0`              | Any float                         | Specific to `"MEM"`:The lower bound of the alpha range |
-| **alpha_max**        | `10`              | Any float                         | Specific to `"MEM"`: The upper bound of the alpha range |
+| **alpha_min**        | `0`              | Any float                         | Specific to `"MEM"`:The lower bound of the alpha range (in logspace, so alpha = 10**alpha_min) |
+| **alpha_max**        | `10`              | Any float                         | Specific to `"MEM"`: The upper bound of the alpha logspace range (in logspace, so alpha = 10**alpha_max) |
 | **alpha_points**        | `64`              | Any float                         | Specific to `"MEM"`: The number of points in the alpha range |
 | **default_model**        | `"constant"`              | `"constant"`,`"quadratic"`,`"exact"`, `"file"`              | Specific to `"MEM"`: The default model to be used. The values should be in the second column. |
 | **default_model_file**        | `""`              | Any string path              | Specific to `"MEM"`: The file path to the default model. |

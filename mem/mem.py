@@ -28,6 +28,12 @@ import os
 import itertools
 from typing import List, Tuple, Callable
 
+def trunc(
+        values, 
+        dec = 0
+        ):
+    return np.trunc(values * 10**dec) / 10**dec # truncate to dec decimal places - primarily for Hessian in step 2 of mem
+
 def KL_kernel_Momentum(
         Momentum, 
         Omega
@@ -225,85 +231,6 @@ class mem:
         ) -> np.ndarray:
         N_s = M.shape[0]
         def_model = self.def_model
-        omega = self.w
-        rho = self.def_model *np.exp(U @ u_guess)
-
-        class GifCallback:
-            def __init__(self, mem_class, filename="history.gif"):
-                self.mem = mem_class
-                self.filename = filename
-                self.history = []
-                self.frames = []
-                self._tmpdir = "_frames"
-                os.makedirs(self._tmpdir, exist_ok=True)
-
-            def __call__(self, xk, *args):
-                self.history.append(np.copy(xk))
-                self._save_frame(xk)
-
-            def _save_frame(self, xk):
-                fig, (ax1, ax2) = plt.subplots(1,2, figsize = (16,4))
-                arr = np.array(self.history)
-                rho = def_model * np.exp(U @ xk)
-                #rho_hist = []
-                #rho_hist.append(rho)
-                #rho_history = np.array(rho_hist)
-                a,g,m = 1,1,1
-                exact = (4 * a * g * omega) / (4 * g**2 * omega**2 + (g**2 + m**2 - omega**2)**2)
-                ax1.plot(omega, rho, label = "Prediction")
-                ax1.plot(omega, def_model, label = "Default model", alpha = 0.5)
-                ax1.plot(omega, exact, label = "Exact", alpha = 0.5)
-                ax1.set_xlabel("omega")
-                ax1.set_ylabel("Spf")
-                ax1.set_title(f"Iteration {len(arr)}")
-                ax1.legend(loc = "upper right")
-
-                Nt = 16
-                tau = np.arange(Nt)
-                delomega = omega[1]- omega[0]
-                kernel = KL_kernel_Position_FiniteT(tau, omega, 1/Nt)
-                G_pred = Di(kernel, rho/(2*np.pi), delomega)
-                G_def_model = Di(kernel, def_model/(2*np.pi), delomega)
-                #G_pred_hist = []
-                #G_pred_hist.append(G_pred)
-                #G_pred_history = np.array(G_pred_hist)
-
-                ax2.scatter(tau, G_pred, label = "Prediction", marker = 'x')
-                ax2.scatter(tau, G_def_model, label = "Default model", marker = 'x')
-                ax2.scatter(tau, corr, label = "Exact", marker = 'x')
-                ax2.set_xlabel("tau")
-                ax2.set_ylabel("corr")
-                ax2.set_yscale("log")
-                ax2.set_title(f"Iteration {len(arr)}")
-                ax2.legend(loc = "upper right")
-                
-                """S,L,Q = np.zeros(rho_history.shape[1]), np.zeros(rho_history.shape[1]), np.zeros(rho_history.shape[1])
-                for i in range(rho_history.shape[1]):
-                    S[i] = np.sum(rho_history[:,i] - def_model - rho_history[:,1] * np.log(rho_history[:,1]/def_model))
-                    L[i] = 0.5 * np.sum((corr - G_pred_history[:,1]) @ self.mem.cov_mat_inv @ (corr - G_pred_history[:,1]))
-                    Q[i] = al*S[i] - L[i]
-                
-                for i in range(rho_history.shape[1]):
-                    ax3.scatter(range(len(rho_history)), Q[i], marker= "x")
-                    #ax3.scatter(range(len(rho_history)), S[i], marker= "x")
-                    #ax3.scatter(range(len(rho_history)), L[i], marker= "x")
-                ax3.set_xlabel("Iteration")
-                ax3.set_ylabel("Value")
-                ax3.set_title(f"Iteration {len(arr)}")
-                ax3.legend(loc = "upper right")"""
-
-                frame_path = os.path.join(self._tmpdir, f"frame_{len(arr):03d}.png")
-                fig.savefig(frame_path)
-                plt.close(fig)
-                self.frames.append(frame_path)
-
-            def save_gif(self, fps=2):
-                images = [imageio.imread(frame) for frame in self.frames]
-                imageio.mimsave(self.filename, images, fps=fps)
-                # cleanup temporary images
-                for frame in self.frames:
-                    os.remove(frame)
-                os.rmdir(self._tmpdir)
             
         def func(b):
             rho = self.def_model *np.exp(U @ b)
@@ -314,19 +241,13 @@ class mem:
         
         def jac(b):
             rho = self.def_model *np.exp(U @ b)
-            #J = M @ U.T @ np.diag(rho) @ U
-            #J += al * np.eye(N_s)
             diag_rho_U = np.diag(rho /(2*np.pi)) @ U
             A = (kernel @ diag_rho_U) * self.delomega
             J_nonlinear = VXi.T @ self.cov_mat_inv @ A
             J = -al * np.eye(N_s) - J_nonlinear
             return J
 
-        #callback = GifCallback(self, "live_history.gif")
-        #sol = root(func, u_guess, callback = callback, method='broyden1', options = {'maxiter': 1000, 'disp': True}) #took the jacobian out for broyden1
-        #tol = 10e-10
-        #callback.save_gif(fps=12)
-
+        # --- diagnostics ---
         rho_guess = self.def_model * np.exp(U @ u_guess)
         G_rho_guess = Di(kernel, rho_guess/(2*np.pi), self.delomega)
         diff_guess = G_rho_guess - corr
@@ -356,30 +277,47 @@ class mem:
             kernel: np.ndarray
             ) -> np.ndarray:
         """Calculation of P[alpha|D,H,M] as per MEM paper step 2"""
-        P_alphaHM = 1
+        P_alphaHM = 1 # Laplace's rule
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
         evs = np.zeros((len(self.alpha), len(self.w)))
-        #print(scipy.linalg.issymmetric(self.cov_mat_inv @ kernel))
         Hess_mat = kernel.T @ self.cov_mat_inv @ kernel
+        Hess_mat = 0.5 * (Hess_mat + Hess_mat.T) # ensure symmetry
+        #Hess_mat = trunc(Hess_mat, dec=1) # truncate to 1 decimal place to avoid numerical instability
+
         for i in range(len(self.alpha)):
-            lam_mat = np.sqrt(np.diag(rho[i][:])) @ Hess_mat @ np.sqrt(np.diag(rho[i][:]))
+            rho_vec = np.maximum(rho[i][:].astype(np.float64), 1e-300) # avoid exact zeros for eigenvalue function
+            S_mat = np.sqrt(np.diag(rho_vec))
+            lam_mat = S_mat @ Hess_mat @ S_mat
+            lam_mat = 0.5 * (lam_mat + lam_mat.T) #ensure symmetry
+
             eigval, eigvec = np.linalg.eigh(lam_mat)
+
+            machine_eps = np.finfo(float).eps
+            scale = max(1.0, np.max(np.abs(eigval)))
+            tol = lam_mat.shape[0] * machine_eps * scale # relative tolerance
+            abs_tol = 1e-12 # absolute floor (relaxable to 1e-10)
+            neg_tol = max(tol, abs_tol)
+
+            # clamp tiny negative eigenvlaues to zero: warn for substantial negatives
+            small_neg_mask = eigval < 0
+            if np.any((eigval < 0) & (np.abs(eigval) <= neg_tol)):
+                eigval[eigval < 0] = 0.0
+            if np.any(eigval < -neg_tol):
+                print("Warning: significant negative eigenvalues (numerical?) for alpha = ", self.alpha[i])
+                print("min eigenval:", eigval.min())
+                eigval = np.maximum(eigval, -self.alpha[i] + abs_tol)
+            
+            
             evs[i][:] = eigval
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
             G = Di(kernel, rho[i][:]/(2*np.pi), self.delomega)
             diff = corr - G
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
-            if np.any(eigval <= 0):
-                print("Warning: Non-positive eigenvalue encountered, setting it to 1e-10")
-                eigval[eigval <= 0] = 1e-10
             prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
             exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
-        exp_int = np.trapezoid(exp, self.alpha)
-        if exp_int == 0:
-            print("Warning: Integral of exp is zero, setting to 1 to avoid NaNs")
-            exp_int = 1
-        exp /= exp_int
         P_alphaDHM = P_alphaHM * exp
+
+        # --- diagnostics ---
         plt.figure(2, figsize=(15,5))
         plt.subplot(1,3,1)
         plt.plot(np.log(self.alpha), np.log(evs), alpha = 0.3, linestyle = "--")
@@ -403,7 +341,7 @@ class mem:
         plt.legend()
         plt.tight_layout()
         plt.savefig("mem_prob_dist.png")
-
+        # --- end diagnostics ---
 
         alpha_ind = []
         for i in range(len(self.alpha)):
@@ -418,7 +356,7 @@ class mem:
             rho_red[i][:] = rho[alpha_ind[i]][:]
         normalizing_fac = integrate.trapezoid(P_alphaDHM_red, alpha_int)
         rho_out = np.zeros(len(self.w))
-        if normalizing_fac < 1e-10: 
+        if len(alpha_int) <= 2: 
             P_alphaDHM_red = 1
             normalizing_fac = 1
             print("Warning: Probability distribution too narrow, using maximum only for averaging")
@@ -436,6 +374,7 @@ class mem:
             alpharegion: np.ndarray
             ) -> np.ndarray:
         """Error estimation as per MEM paper step 3"""
+        print("Calculating error in region:", w_region[0], w_region[-1])
         Hess_Q = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_Q_inv = np.zeros((len(self.alpha), len(w_region), len(w_region)))
         Hess_S = np.zeros((len(self.alpha), len(w_region), len(w_region)))
@@ -453,7 +392,7 @@ class mem:
                 for n in range(len(w_region)):
                     if k == n:
                         if rho_alpha[i][k+w_start_index] == 0:
-                            print("A_alpha value error")
+                            print("rho_alpha value error")
                         Hess_S[i][k][n] = - 1/(rho_alpha[i][k+w_start_index] * self.delomega)
                     Hess_Q[i][k][n] = alpharegion[i] * Hess_S[i][k][n] - Hess_L[k][n]
             Hess_Q_inv[i][:][:] = np.linalg.inv(Hess_Q[i][:][:])
@@ -486,9 +425,6 @@ class mem:
             print("*"*40)
             print("Starting calculation of probability distribution")
         rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min, correlator, kernel)
-        if verbose:
-            print("*"*40)
-            print("Starting error evaluation")
         if np.any(np.isnan(rho_min)):
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")
@@ -498,6 +434,9 @@ class mem:
             print("Probability distribution empty. Aborting error evaluation.")
             error = np.zeros(len(omega))
         else:
+            if verbose:
+                print("*"*40)
+                print("Starting error evaluation")
             error_region = self.w[:50]
             error = self.step3(rho_min, Hess_L, error_region, Prob_dist_normed, alpha_reg)
         return rho_out, error, Prob_dist
@@ -593,7 +532,7 @@ class FitRunner:
             parameterHandler: ParameterHandler
             ):
         self.parameterHandler = parameterHandler
-        self.alpha = np.linspace(
+        self.alpha = np.logspace(
             self.parameterHandler.get_params()["alpha_min"],
             self.parameterHandler.get_params()["alpha_max"],
             self.parameterHandler.get_params()["alpha_points"]
@@ -721,11 +660,10 @@ class FitRunner:
         else:
             writeData = np.column_stack((self.omega, mean))
         np.savetxt(os.path.join(self.outputDir, self.outputFile), writeData, header=header)
-        """prob_header = "alpha Probability_distribution"
+        prob_header = "alpha Probability_distribution"
         if prob is not None and len(prob) == len(self.alpha):
             probData = np.column_stack((self.alpha, prob))
-            np.savetxt(os.path.join(self.outputDir, self.outputFile + "_prob"), probData, header=prob_header)"""
-        ########### comment this back in
+            np.savetxt(os.path.join(self.outputDir, self.outputFile + "_prob"), probData, header=prob_header)
         if self.parameterHandler.get_params()["saveParams"]:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
 
@@ -786,8 +724,8 @@ def main(
 
     fitRunner = FitRunner(parameterHandler)
     results, error, prob = fitRunner.run_fits()
-    #if len(np.squeeze(prob)) <= 1:
-    #    prob = None
+    if len(np.squeeze(prob)) <= 1:
+        prob = None
     mean = results[0]
     if len(results)>1:
         samples = results[1:]
@@ -795,6 +733,7 @@ def main(
     else:
         samples = None
         error = None
+    print("Saving results to:", os.path.join(fitRunner.outputDir, fitRunner.outputFile))
     fitRunner.save_results(mean,error,samples, np.squeeze(prob))
 
 
