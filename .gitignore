@@ -7,8 +7,5 @@ supervised_ml/SupervisedNN*
 supervised_ml/KadesFC*
 params.json
 outputs/
-quick_plotting.py
 quick_plot.py
 supervised_ml/debug*
-mem/_frames/
-mem/_frames/*

@@ -59,7 +59,7 @@ def build_kernel(p_or_t_grid, omega_grid, mode='momentum'):
         # ensure t >= 0
         if np.any(t_grid < 0):
             raise ValueError('All t must be >= 0 for zero-temperature kernel')
-        K = np.exp(-np.outer(t_grid, omega_grid)) * d_omega
+        K = np.exp(-np.outer(omega_grid, t_grid)) + np.exp(-np.outer(omega_grid,(len(t_grid)-t_grid)))
     else:
         raise ValueError("mode must be 'momentum' or 'position'")
 
@@ -148,8 +148,8 @@ def make_propagator_chisq_loss(kernel_np):
         y_pred_rho = tf.clip_by_value(y_pred_rho, 0.0, 1e6)
 
         # G = rho @ K^T  -> (batch, N_pts)
-        G_pred = tf.matmul(y_pred_rho, tf.transpose(K))
-        G_true = tf.matmul(rho_true, tf.transpose(K))
+        G_pred = tf.matmul(y_pred_rho, K)
+        G_true = tf.matmul(rho_true, K)
 
         diff2 = tf.math.squared_difference(G_true, G_pred)
         chisq = diff2 / (sigma**2 + 1e-12)
@@ -189,7 +189,7 @@ def generate_dataset(n_samples=20000, Np=100, Nw=500, max_bws=3, noise_sigma=1e-
     for i in range(n_samples):
         nbw = np.random.randint(1, max_bws+1)
         rho = random_spectrum(omega_grid, n_bws=nbw)
-        G = K @ rho
+        G = rho @ K
         # add gaussian noise to propagator (smaller sigma to avoid instability)
         noise = np.random.normal(scale=noise_sigma, size=G.shape)
         G_noisy = G + noise 
@@ -217,7 +217,7 @@ if __name__ == '__main__':
     n_train = 5000
     n_val = 1000
     batch_size = 64
-    n_epochs = 1000
+    n_epochs = 100
     alpha = 1.0        
     beta = 1.0 
     lr = 1e-5           # smaller learning rate
@@ -238,7 +238,7 @@ if __name__ == '__main__':
     Y_train, Y_val = Y_concat[:n_train], Y_concat[n_train:]
 
     # build model (use 'small' variant for stability; switch to 'paper' if you have large GPU)
-    model = build_ponet_fc(input_dim=Np, output_dim=Nw, center_variant='small', dropout_rate=0.05)
+    model = build_ponet_fc(input_dim=Np, output_dim=Nw, center_variant='paper', dropout_rate=0.05)
     model.summary()
 
     # compile with combined loss L_rho + alpha L_G
@@ -282,8 +282,8 @@ if __name__ == '__main__':
     plt.legend()
     plt.title('Training history')
     plt.subplot(1,3,3)
-    plt.errorbar(p_or_t_grid, x_sample[0], yerr = abs(y_err), label='input G', fmt = 'x', markeredgewidth = 1, elinewidth= 1, capsize= 1, color='orange')
-    plt.scatter(p_or_t_grid, K @ rho_pred, label='reconstructed G', marker = 'x', color='green', s=10, alpha=0.7)
+    plt.errorbar(p_or_t_grid, x_sample[0], yerr = abs(y_err), label='input G', fmt = 'x', markeredgewidth = 1, elinewidth= 1, capsize= 1, color='orange', alpha=0.5)
+    plt.scatter(p_or_t_grid, rho_pred @ K, label='reconstructed G', marker = 'x', color='green', s=10)
     plt.xlabel('t' if kernel_mode=='position' else 'p')
     plt.ylabel('G')
     plt.yscale("log")
