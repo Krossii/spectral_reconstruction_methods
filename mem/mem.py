@@ -34,6 +34,14 @@ def trunc(
         ):
     return np.trunc(values * 10**dec) / 10**dec # truncate to dec decimal places - primarily for Hessian in step 2 of mem
 
+def KL_kernel_asakawa(
+        Position, 
+        Omega
+        ):
+    Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
+    ker = np.exp(-Omega * np.abs(Position))
+    return ker
+
 def KL_kernel_Momentum(
         Momentum, 
         Omega
@@ -127,6 +135,9 @@ def get_default_model(
         else:
             def_model = w**2
             return def_model
+    if defmod == "asakawa":
+        m_0 = 0.0257
+        return m_0 * w**2
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
         def_model = data[:, 1]
@@ -165,10 +176,40 @@ class mem:
         elif extractedQuantity=="Rho" and finiteT_kernel:
             kernel=KL_kernel_Position_FiniteT(x,omega,1/Nt)
         elif extractedQuantity=="Rho" and finiteT_kernel==False:
+            #kernel=KL_kernel_asakawa(x, omega)
             kernel=KL_kernel_Position_Vacuum(x,omega)
         else:
             raise ValueError("Invalid choice spectral function target")
         return kernel
+
+    """def alt_step1(
+            self,
+            corr: np.ndarray,
+            kernel: np.ndarray
+        ) -> np.ndarray:
+        #Alternative step 1 implementation using dual solver method 
+        
+        def dual_prob(y):
+            # eq 17 from paper
+            logexp = Z * np.log(np.sum(self.def_model * np.exp(kernel @ y - np.linalg.inv(self.cov_mat_inv))))
+            d = self.alpha/2 * y.T @ np.linalg.inv(self.cov_mat_inv) @ y + np.outer(corr, y) + logexp - Z * np.log(Z)
+            return d        # should this really return d and not a tuple?
+
+
+        def func(Z):
+            # eq A2 from paper
+            V = root() # should this really be V?
+            V_prime = - np.log(np.sum(self.def_model * np.exp(kernel @ y))) + np.log(Z) + 1
+            return V_prime
+
+        # y is vector of size N_t
+        # Z is scalar
+        # recheck all of the C's in the paper against the cov mats you put here
+
+        bin_search = root(func) # recheck the methods you should use here
+
+    return rho_min"""
+
 
     def step1(
             self, 
@@ -187,9 +228,7 @@ class mem:
 
         M = VXi.T @ self.cov_mat_inv @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
-        S, L, Q = np.zeros(len(self.alpha)),np.zeros(len(self.alpha)),np.zeros(len(self.alpha))
-        #u_g = np.zeros((M.shape[0]))
-        #u_g[0]=1
+
         u_g = np.random.rand(M.shape[0]) 
 
         def getRhoMin(al):
@@ -201,22 +240,21 @@ class mem:
 
         for i in range(len(self.alpha)):
             rho_min_array = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
-            rho_min[i][:] = rho_min_array#[i]
+            rho_min[i][:] = rho_min_array
             G_rho = Di(kernel, rho_min[i][:]/(2*np.pi), self.delomega)
 
-        plt.figure(1, figsize=(12,4))
+        """plt.figure(1, figsize=(12,4))
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
-            plt.plot(self.w, rho_min[i][:], label = f"alpha = {self.alpha[i]}")
-        plt.plot(self.w, self.def_model, label = "Default model", color = "black", linestyle = "--")
+            plt.plot(self.w, rho_min[i][:])
+        plt.plot(self.w, self.def_model, color = "black", linestyle = "--")
         plt.ylim(-0.1,3)
         plt.subplot(1,2,2)
-        plt.scatter(self.tau, corr, label = "Data", marker = "x")
-        plt.scatter(self.tau, G_rho, label = "Prediction", marker = "x")
-        plt.legend()
+        plt.scatter(self.tau, corr, color = "tomato", marker = "x")
+        plt.scatter(self.tau, G_rho, color = "cornflowerblue", marker = "x")
         plt.yscale("log")
         plt.tight_layout()
-        plt.savefig("mem_alpha_scan.png")
+        plt.savefig("mem_alpha_scan.png")"""
         return rho_min
     
     def minimizer(
@@ -237,6 +275,17 @@ class mem:
             G_rho = Di(kernel, rho/(2*np.pi), self.delomega)
             g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
             f = -al * b - g
+            """plt.figure(1)
+            plt.subplot(1,2,1)
+            plt.plot(self.w, rho)
+            plt.plot(self.w, def_model)
+            plt.ylim(-0.5,5)
+            plt.subplot(1,2,2)
+            plt.plot(self.tau, G_rho)
+            plt.plot(self.tau, corr)
+            plt.yscale("log")
+            plt.ylim(10**-5, 10**1)
+            plt.savefig("diagnosis.png")"""
             return f
         
         def jac(b):
@@ -282,7 +331,6 @@ class mem:
         evs = np.zeros((len(self.alpha), len(self.w)))
         Hess_mat = kernel.T @ self.cov_mat_inv @ kernel
         Hess_mat = 0.5 * (Hess_mat + Hess_mat.T) # ensure symmetry
-        #Hess_mat = trunc(Hess_mat, dec=1) # truncate to 1 decimal place to avoid numerical instability
 
         for i in range(len(self.alpha)):
             rho_vec = np.maximum(rho[i][:].astype(np.float64), 1e-300) # avoid exact zeros for eigenvalue function
@@ -321,24 +369,22 @@ class mem:
         plt.figure(2, figsize=(15,5))
         plt.subplot(1,3,1)
         plt.plot(np.log(self.alpha), np.log(evs), alpha = 0.3, linestyle = "--")
-        plt.plot(np.log(self.alpha), np.log(self.alpha), label = "log(alpha)")
+        plt.plot(np.log(self.alpha), np.log(self.alpha))
         plt.xlabel("log(alpha)")
         plt.ylabel("log(mean eigenvalue)")
-        plt.legend()
         plt.subplot(1,3,2)
-        plt.plot(self.alpha, P_alphaDHM, label = "P[alpha|D,H,M]")
-        plt.plot(self.alpha, prefactor, label = "prefactor")
-        plt.plot(self.alpha, np.exp(self.alpha*S - L), label = "exp")
-        plt.legend()
+        plt.plot(self.alpha, P_alphaDHM, color = "tomato")
+        plt.plot(self.alpha, prefactor, color = "cornflowerblue", alpha = 0.5)
+        plt.plot(self.alpha, np.exp(self.alpha*S - L), color = "green", alpha = 0.5)
+        plt.xscale("log")
         plt.xlabel("alpha")
         plt.ylabel("P[alpha|D,H,M]")
         plt.subplot(1,3,3)
-        plt.plot(self.alpha, self.alpha*S, label = "alpha*S")
-        plt.plot(self.alpha, L, label = "L")
-        plt.plot(self.alpha, self.alpha*S - L, label = "Q")
+        plt.plot(self.alpha, self.alpha*S, color = "tomato")
+        plt.plot(self.alpha, L, color = "cornflowerblue")
+        plt.plot(self.alpha, self.alpha*S - L, color = "green")
         plt.xlabel("alpha")
         plt.ylabel("Q, L, alpha*S")
-        plt.legend()
         plt.tight_layout()
         plt.savefig("mem_prob_dist.png")
         # --- end diagnostics ---
@@ -363,7 +409,7 @@ class mem:
             return np.mean(rho, axis=0), P_alphaDHM, P_alphaDHM_red, alpha_int, Hess_mat
         for i in range(len(self.w)):
             rho_out[i] = integrate.trapezoid(np.transpose(rho_red)[i][:] * P_alphaDHM_red/normalizing_fac, alpha_int)
-        return rho_out, P_alphaDHM, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
+        return rho_out, P_alphaDHM/normalizing_fac, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
 
     def step3(
             self, 
@@ -553,12 +599,14 @@ class FitRunner:
                                                self.parameterHandler.get_params()["default_model"], 
                                                self.parameterHandler.get_params()["default_model_file"])
         self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
+        if self.finiteT_kernel: temp = "finite_T"
+        else: temp = "zero_T"
         self.verbose = self.parameterHandler.get_verbose()
         self.multiFit = self.parameterHandler.get_params()["multiFit"]
         self.extractedQuantity = self.parameterHandler.get_extractedQuantity()
         self.Nt = self.parameterHandler.get_params()["Nt"] or len(self.x)
         self.outputDir = os.path.abspath(self.parameterHandler.get_params()["outputDir"])
-        self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
+        self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{temp}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
         cov = np.diag(self.error ** 2)
         cov_inv = np.linalg.inv(cov)
         self.fitter = mem(
@@ -625,10 +673,8 @@ class FitRunner:
         n_correlators = self.correlators.shape[0]
         self.run_single_fit(self.mean, "Fitting mean correlator", results, errors, probs)
 
-        ############################### this needs to be uncommented later
-
-        #for i, corr in enumerate(self.correlators):
-        #    self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors, probs)
+        for i, corr in enumerate(self.correlators):
+            self.run_single_fit(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, errors, probs)
         return np.array(results), np.array(errors), np.array(probs)
 
     def calculate_mean_error(
@@ -655,8 +701,7 @@ class FitRunner:
             header += f" {self.extractedQuantity}_error"
             for i in range(len(samples)):
                 header += f" {self.extractedQuantity}_sample_{i}"
-            header += " Probability_distribution"
-            writeData = np.column_stack((self.omega, mean, error, samples.T, prob))
+            writeData = np.column_stack((self.omega, mean, error, samples.T))
         else:
             writeData = np.column_stack((self.omega, mean))
         np.savetxt(os.path.join(self.outputDir, self.outputFile), writeData, header=header)

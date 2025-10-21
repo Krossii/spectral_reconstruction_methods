@@ -105,7 +105,7 @@ def build_ponet_fc(input_dim=100, output_dim=500,
         if dropout_rate > 0:
             x = layers.Dropout(dropout_rate)(x)
 
-    out = layers.Dense(output_dim, activation='linear', kernel_initializer=init, name='rho_output')(x)
+    out = layers.Dense(output_dim, activation='relu', kernel_initializer=init, name='rho_output')(x)
 
     model = models.Model(inputs=inp, outputs=out, name='PoNet_FC_stable')
     return model
