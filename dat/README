@@ -1,0 +1,7 @@
+The correlator is in lattice units a^3*JJ(t), is not multiplied by any factor like Nc or charges
+The jack_i is the ith jackknife bin, which is used to calculate the error. Ten Jackknife bins are used  
+The volume factor that has been divided is Ns^3 
+It corresponds to only one flavor-> d quark.
+The name of the file is:
+	data_wilson_emconduc_(ns)_(nt)_b(beta)_B(Nb)_(dir).txt 
+where dir indicates the component i of the J_iJ_i(tau) correlator. The magnetic field corresponds to the z direction.
