@@ -482,9 +482,10 @@ class mem:
         else:
             if verbose:
                 print("*"*40)
-                print("Starting error evaluation")
-            error_region = self.w[:50]
-            error = self.step3(rho_min, Hess_L, error_region, Prob_dist_normed, alpha_reg)
+                print("Ignored omega specific error evaluation")
+            #error_region = self.w[:50]
+            #error = self.step3(rho_min, Hess_L, error_region, Prob_dist_normed, alpha_reg)
+            error = np.zeros(len(omega))
         return rho_out, error, Prob_dist
 
 class ParameterHandler:
