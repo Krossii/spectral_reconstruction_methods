@@ -7,14 +7,14 @@ home_path = "/mnt/c/Users/chris/Desktop"
 method = "mem"
 
 function = "BW"  # 2PGAUSS
-temp = "zero_T" # finite_T
+temp = "finite_T" # finite_T
 extr_Q = "Rho" # RhoOverOmega
 
-B_field = 0
+B_field = 4
 
 Nt = 16
 
-mock_data = True
+mock_data = False
 noise = [2] # [2,3,4] currently this only allows a list of noise levels --- handle this dynamically later
 
 N_samples = 10 # number of jackknife samples used in the reconstructions
@@ -135,8 +135,8 @@ def load_MEM():
             G_output[i][:] = Di(K, predicted_spf[i][:]/(2*np.pi), w[1]-w[0])
             G_output_err[i][:] = Di(K, spf_var[i][:]/(2*np.pi), w[1]-w[0])
     else:
-        G_output = Di(K, predicted_spf/(2*np.pi), w[1]-w[0])
-        G_output_err = Di(K, spf_var/(2*np.pi), w[1]-w[0])
+        G_output = Di(K, predicted_spf, w[1]-w[0])#/(2*np.pi)
+        G_output_err = Di(K, spf_var, w[1]-w[0])#/(2*np.pi)
 
     # --- calculate the default model for MEM ---
 
@@ -309,12 +309,12 @@ def plotting_MEM(rho_input, rho_learned, rho_err, G_exact, G_err, G_learned, G_l
             plt.plot(w, rho_learned[i][:], label=f"Noise{i+2}", color=colors[i])
             plt.fill_between(w, rho_learned[i][:] - rho_err[i][:], rho_learned[i][:] + rho_err[i][:], color = colors[i], alpha = 0.5)
     else:
-        plt.plot(w, rho_learned*w, label=f"Learned ρ", color="tomato")
-        plt.fill_between(w, rho_learned*w-rho_err*w, rho_learned*w+rho_err*w, color = "tomato", alpha =0.5)
-    plt.plot(w, d_model*w, label = 'Prior', color = 'black', linestyle = 'dashed', alpha = 0.6)
+        plt.plot(w, rho_learned, label=f"Learned ρ", color="tomato")
+        plt.fill_between(w, rho_learned-rho_err, rho_learned+rho_err, color = "tomato", alpha =0.5)
+    plt.plot(w, d_model, label = 'Prior', color = 'black', linestyle = 'dashed', alpha = 0.6)
     plt.legend()
     plt.ylim(0,0.65)
-    plt.ylabel(r"$\rho (\omega)$")
+    plt.ylabel(r"$\rho (\omega)/\omega$")
     plt.xlabel(r"$\omega$")
     plt.title("Spectral Function")
 
@@ -426,8 +426,8 @@ def comparing_mock(
     plt.tight_layout()
 
 predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = load_MEM()
-predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
-predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = load_gaussian()
+#predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
+#predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = load_gaussian()
 #predicted_spf, spf_var, G_output, G_output_err = load_unsupervised()
 
 if losshistory:
@@ -438,7 +438,7 @@ else:
             true_spf, predicted_spf_gauss[0][:], predicted_spf_bg[0][:], predicted_spf_mem[0][:], spf_var_gauss[0][:], spf_var_bg[0][:], spf_var_mem[0][:], 
             G_input[0][:], G_input_err[0][:], G_output_gauss[0][:], G_output_bg[0][:], G_output_mem[0][:], G_output_err_gauss[0][:], G_output_err_bg[0][:], G_output_err_mem[0][:])
     else:
-        plotting_MEM(true_spf, predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err, default_model)
+        plotting_MEM(true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
     #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
     #plotting_unsupervised(predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err)
 
