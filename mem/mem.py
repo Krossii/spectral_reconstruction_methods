@@ -65,8 +65,8 @@ def KL_kernel_Position_FiniteT(
         ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     with np.errstate(divide='ignore'):
-        if Omega[0] == 0:
-            Omega[0] = 1e-8
+        #if Omega[0] == 0:
+        #    Omega[0] = 1e-8
 
         ker = np.cosh(Omega * (Position-1/(2*T))) / np.sinh(Omega/2/T)
 
@@ -141,7 +141,7 @@ def get_default_model(
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
         def_model = data[:, 1]
-        return def_model + 0.1*w
+        return w*def_model
     raise ValueError("Invalid choice of default model")
 
 class mem:
@@ -241,9 +241,9 @@ class mem:
         for i in range(len(self.alpha)):
             rho_min_array = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
             rho_min[i][:] = rho_min_array
-            G_rho = Di(kernel, rho_min[i][:]/(2*np.pi), self.delomega)
+            G_rho = Di(kernel, rho_min[i][:]/(2*np.pi), self.delomega) 
 
-        """plt.figure(1, figsize=(12,4))
+        plt.figure(1, figsize=(12,4))
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:])
@@ -254,7 +254,7 @@ class mem:
         plt.scatter(self.tau, G_rho, color = "cornflowerblue", marker = "x")
         plt.yscale("log")
         plt.tight_layout()
-        plt.savefig("mem_alpha_scan.png")"""
+        plt.savefig("mem_alpha_scan.png")
         return rho_min
     
     def minimizer(
@@ -272,7 +272,7 @@ class mem:
             
         def func(b):
             rho = self.def_model *np.exp(U @ b)
-            G_rho = Di(kernel, rho/(2*np.pi), self.delomega)
+            G_rho = Di(kernel, rho/(2*np.pi), self.delomega) 
             g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
             f = -al * b - g
             """plt.figure(1)
@@ -290,7 +290,7 @@ class mem:
         
         def jac(b):
             rho = self.def_model *np.exp(U @ b)
-            diag_rho_U = np.diag(rho /(2*np.pi)) @ U
+            diag_rho_U = np.diag(rho/(2*np.pi)) @ U 
             A = (kernel @ diag_rho_U) * self.delomega
             J_nonlinear = VXi.T @ self.cov_mat_inv @ A
             J = -al * np.eye(N_s) - J_nonlinear
@@ -298,7 +298,7 @@ class mem:
 
         # --- diagnostics ---
         rho_guess = self.def_model * np.exp(U @ u_guess)
-        G_rho_guess = Di(kernel, rho_guess/(2*np.pi), self.delomega)
+        G_rho_guess = Di(kernel, rho_guess/(2*np.pi), self.delomega) 
         diff_guess = G_rho_guess - corr
         g_guess = VXi.T @ self.cov_mat_inv @ diff_guess
         print(f"alpha: {al:.3e}")
@@ -358,7 +358,7 @@ class mem:
             
             evs[i][:] = eigval
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
-            G = Di(kernel, rho[i][:]/(2*np.pi), self.delomega)
+            G = Di(kernel, rho[i][:]/(2*np.pi), self.delomega) 
             diff = corr - G
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
             prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))

@@ -5,7 +5,5 @@ supervised_ml/spf_datasets/val*
 supervised_ml/supervisedNN*
 supervised_ml/SupervisedNN*
 supervised_ml/KadesFC*
-params.json
-outputs/
 quick_plot.py
 supervised_ml/debug*
