@@ -8,16 +8,16 @@ from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 
-from latqcdtools.base.check import ignoreDivideByZero, ignoreInvalidValue, ignoreUnderflow, ignoreOverflow
-from latqcdtools.base.speedify import parallel_function_eval
-ignoreDivideByZero()
-ignoreInvalidValue()
-ignoreUnderflow()
-ignoreOverflow()
+#from latqcdtools.base.check import ignoreDivideByZero, ignoreInvalidValue, ignoreUnderflow, ignoreOverflow
+#from latqcdtools.base.speedify import parallel_function_eval
+#ignoreDivideByZero()
+#ignoreInvalidValue()
+#ignoreUnderflow()
+#ignoreOverflow()
 
 
-import imageio
-import imageio.v2 as imageio
+#import imageio
+#import imageio.v2 as imageio
 
 import numpy as np
 import json
@@ -27,6 +27,8 @@ import pprint
 import os
 import itertools
 from typing import List, Tuple, Callable
+
+np.random.seed(2000)
 
 def trunc(
         values, 
@@ -120,7 +122,7 @@ def get_default_model(
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapezoid(exact, x=w)/np.trapezoid(np.ones(len(exact)), x=w)
+            m_0 = np.trapz(exact, x=w)/np.trapz(np.ones(len(exact)), x=w)
             def_model = np.ones(len(exact))
             return def_model*m_0
         else:
@@ -129,7 +131,7 @@ def get_default_model(
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapezoid(exact, x=w) / (np.trapezoid(w**2, x=w))
+            m_0 = np.trapz(exact, x=w) / (np.trapz(w**2, x=w))
             def_model = m_0* w**2
             return def_model
         else:
@@ -231,11 +233,11 @@ class mem:
 
         u_g = np.random.rand(M.shape[0]) 
 
-        def getRhoMin(al):
-            return self.minimizer(corr, VXi, M, U, al, u_g, kernel)
+        #def getRhoMin(al):
+        #    return self.minimizer(corr, VXi, M, U, al, u_g, kernel)
         
 
-        rho_min_array = parallel_function_eval(getRhoMin, list(range(len(self.alpha))))
+        #rho_min_array = parallel_function_eval(getRhoMin, list(range(len(self.alpha))))
 
 
         for i in range(len(self.alpha)):
