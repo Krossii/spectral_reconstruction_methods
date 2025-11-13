@@ -74,6 +74,11 @@ def read_file_l1(filename):
     data = np.loadtxt(filename)
     return data[:,1]
 
+def divbyOmega(function, w):
+    if w[0] == 0:
+        w[0]= 1e-8
+    return function/w
+
 if losshistory:
     train_loss_history_data = read_file("/home/Christian/Desktop/spec_rec_methods/supervised_ml/outputs/RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt.trainloss.dat")
     val_loss_history_data = read_file("/home/Christian/Desktop/spec_rec_methods/supervised_ml/outputs/RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt.valloss.dat")
@@ -121,7 +126,7 @@ def load_MEM():
         for i in range(len(noise)):
             spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
             predicted_spf[i][:] = spf_data[:,1]
-            spf_var[i][:] = spf_data[:,2] #*10**(-1) why?
+            spf_var[i][:] = spf_data[:,2]
             for j in range(N_samples-1):
                 predicted_spf_bins[i][j][:] = spf_data[:,j+3]
 
@@ -415,18 +420,36 @@ def comparing_mock(
         G_err_bg,
         G_err_mem,
         ):
+
+    rho_input = divbyOmega(rho_input, w)
+    rho_gauss = divbyOmega(rho_gauss, w)
+    rho_err_g = divbyOmega(rho_err_g, w)
+    rho_bg = divbyOmega(rho_bg, w)
+    rho_err_bg = divbyOmega(rho_err_bg, w)
+    rho_mem = divbyOmega(rho_mem, w)
+    rho_err_mem = divbyOmega(rho_err_mem, w)
+
+    omega=w[1:]
+    rho_input = rho_input[1:]
+    rho_gauss = rho_gauss[1:]
+    rho_err_g = rho_err_g[1:]
+    rho_bg = rho_bg[1:]
+    rho_err_bg = rho_err_bg[1:]
+    rho_mem = rho_mem[1:]
+    rho_err_mem = rho_err_mem[1:]
+
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
-    plt.plot(w, rho_input, label = "Input ρ", color = "k")
+    plt.plot(omega, rho_input, label = "Input ρ", color = "k")
     #plt.plot(w, rho_gauss, label="Gaussian", color="tomato")
     #plt.plot(w, rho_bg, label="BG", color="mediumseagreen")
     #plt.plot(w, rho_mem, label="MEM", color="violet")
-    plt.fill_between(w, rho_gauss - rho_err_g, rho_gauss + rho_err_g, color = "tomato", alpha = 0.5, label="Gaussian")
-    plt.fill_between(w, rho_bg - rho_err_bg, rho_bg + rho_err_bg, color = "mediumseagreen", alpha = 0.5, label = "BG")
-    plt.fill_between(w, rho_mem - rho_err_mem, rho_mem + rho_err_mem, color = "violet", alpha = 0.5, label = "MEM")
+    plt.fill_between(omega, rho_gauss - rho_err_g, rho_gauss + rho_err_g, color = "tomato", alpha = 0.5, label="Gaussian")
+    plt.fill_between(omega, rho_bg - rho_err_bg, rho_bg + rho_err_bg, color = "mediumseagreen", alpha = 0.5, label = "BG")
+    plt.fill_between(omega, rho_mem - rho_err_mem, rho_mem + rho_err_mem, color = "violet", alpha = 0.5, label = "MEM")
     plt.legend()
     plt.ylim(0,1.7)
-    plt.ylabel(r"$\rho (\omega)$")
+    plt.ylabel(r"$\rho (\omega) / \omega$")
     plt.xlabel(r"$\omega$")
     plt.title("Spectral Function")
 
@@ -461,6 +484,6 @@ else:
     #plotting_unsupervised(predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err)
 
 if mock_data:
-    plt.savefig(f"Comparison_{extr_Q}_{function}_{temp}_Nt{Nt}_noises{noise[0]}.png")
+    plt.savefig(f"Comparison_{extr_Q}Oomega_{function}_{temp}_Nt{Nt}_noises{noise[0]}.png")
 else:
     plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")
