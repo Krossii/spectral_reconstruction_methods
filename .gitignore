@@ -7,3 +7,4 @@ supervised_ml/SupervisedNN*
 supervised_ml/KadesFC*
 quick_plot.py
 supervised_ml/debug*
+params.json

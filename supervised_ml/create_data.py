@@ -24,7 +24,7 @@ def KL_kernel_Position_Vacuum(
         Omega
         ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-    ker = np.exp(-Omega * np.abs(Position))
+    ker = np.exp(-Omega * np.abs(Position)) + np.exp(-Omega*(len(Position)-Position))
     return ker
 
 def KL_kernel_Position_FiniteT(
@@ -303,9 +303,9 @@ class create_datset:
             self
             ):
         one_dat = []
-        A = np.linspace(0.1, 0.7, 30)
-        M = np.linspace(0.5, 3.0, 30)
-        G = np.linspace(0.3, 0.8, 30)
+        A = np.linspace(0.1, 1.1, 2)
+        M = np.linspace(0.5, 1.1, 2)
+        G = np.linspace(0.3, 1.1, 2)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -313,16 +313,17 @@ class create_datset:
             for j in range(len(M)):
                 for k in range(len(G)):
                     rho = self.breit_wigner(self.w, A[i], M[j], G[k])
-                    normalizing_fac = np.trapezoid(rho, self.w)
-                    normed_rho = rho/normalizing_fac
-                    if np.max(normed_rho) >= 5:
-                        print(A[i], M[j], G[k])
-                    corr = self.get_corr(self.w, self.tau, normed_rho)
+                    #normalizing_fac = np.trapezoid(rho, self.w)
+                    #normed_rho = rho/normalizing_fac
+                    #if np.max(normed_rho) >= 5:
+                    #    print(A[i], M[j], G[k])
+                    #normed_rho = rho
+                    corr = self.get_corr(self.w, self.tau, rho/(2*np.pi))
                     noise = self.noise(corr)
-                    if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
+                    if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                         print("Nan value in single peaked BW")
                     one_dat.append({
-                        'fct': normed_rho,
+                        'fct': rho,
                         'corr': corr,
                         'noise': noise,
                     })

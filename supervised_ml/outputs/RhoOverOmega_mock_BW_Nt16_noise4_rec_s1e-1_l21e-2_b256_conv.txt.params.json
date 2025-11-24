@@ -1,0 +1,38 @@
+{
+    "networkStructure": "KadesConv",
+    "lambda_s": [
+        0.1
+    ],
+    "lambda_l2": [
+        0.01
+    ],
+    "epochs": [
+        5000
+    ],
+    "learning_rate": [
+        1e-06
+    ],
+    "errorWeighting": true,
+    "batch_size": 256,
+    "trainingFile": "/home/candratschke/spectral_reconstruction_methods/supervised_ml/spf_datasets/train_dat_16_500_RhoOverOmega_0.001_SupervisedNN.dat",
+    "validationFile": "/home/candratschke/spectral_reconstruction_methods/supervised_ml/spf_datasets/val_dat_16_500_RhoOverOmega_0.001_SupervisedNN.dat",
+    "eval_model": false,
+    "model_file": "SupervisedNN_Nt16_isedNN.keras",
+    "omega_min": 0,
+    "omega_max": 5,
+    "omega_points": 500,
+    "Nt": 16,
+    "extractedQuantity": "RhoOverOmega",
+    "FiniteT_kernel": true,
+    "correlatorFile": "/home/candratschke/mock-data-main/BW/mock_corr_BW_Nt16_noise4.dat",
+    "xCol": 0,
+    "meanCol": 1,
+    "errorCol": 2,
+    "correlatorCols": "3:",
+    "errormethod": "jackknife",
+    "saveParams": true,
+    "saveLossHistory": true,
+    "verbose": true,
+    "outputFile": "RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt",
+    "outputDir": "./outputs/"
+}

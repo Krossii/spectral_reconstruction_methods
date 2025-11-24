@@ -1,30 +1,30 @@
 {
     "lambda_s": [
-        0.0
+        0.01
     ],
     "lambda_l2": [
-        0.0
+        0.1
     ],
     "epochs": [
-        80
+        900
     ],
     "learning_rate": [
         0.0001
     ],
     "errorWeighting": true,
     "saveLossHistory": true,
-    "batch_size": 256,
-    "trainingFile": "/mnt/c/Users/chris/Desktop/spectral_reconstruction_methods/supervised_ml/spf_datasets/train_dat_16_500_RhoOverOmega_0.001_KadesFC.dat",
-    "validationFile": "/mnt/c/Users/chris/Desktop/spectral_reconstruction_methods/supervised_ml/spf_datasets/train_dat_16_500_RhoOverOmega_0.001_KadesFC.dat",
+    "batch_size": 128,
+    "trainingFile": "./spf_datasets/train_dat_16_500_RhoOverOmega_0.001_SupervisedNN.dat",
+    "validationFile": "./spf_datasets/train_dat_16_500_RhoOverOmega_0.001_SupervisedNN.dat",
     "eval_model": false,
     "model_file": "",
     "omega_min": 0,
-    "omega_max": 1,
+    "omega_max": 5,
     "omega_points": 500,
     "Nt": 16,
     "extractedQuantity": "RhoOverOmega",
-    "FiniteT_kernel": true,
-    "correlatorFile": "/mnt/c/Users/chris/Desktop/mock-data-main/BW/mock_corr_BW_Nt16_noise4.dat",
+    "FiniteT_kernel": false,
+    "correlatorFile": "../../mock-data/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt16_noise4.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -36,5 +36,5 @@
     "outputDir": "./outputs/",
     "cluster": false,
     "clusterpath": "",
-    "networkStructure": "KadesFC"
+    "networkStructure": "SupervisedNN"
 }

@@ -26,7 +26,7 @@ def KL_kernel_Position_Vacuum(
         Omega
         ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-    ker = np.exp(-Omega * np.abs(Position))
+    ker = np.exp(-Omega * np.abs(Position)) + np.exp(-Omega*(len(Position)-Position))
     return ker
 
 def KL_kernel_Position_FiniteT(
@@ -174,7 +174,6 @@ class KadesConv(
         num_output_nodes = config.pop('num_output_nodes')
         return cls(num_output_nodes=num_output_nodes, **config)
 
-
 class SupervisedNN(
     tf.keras.Model
     ):
@@ -302,9 +301,9 @@ class LossCalculator:
         main_loss = self.custom_loss(y_pred, err, y_true)
         smooth_loss = self.smoothness_loss(rho)
         l2_loss = self.l2_regularization()
-        #rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
-        total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss #+ rho_loss
-        return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss]#, rho_loss]
+        rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
+        total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss + rho_loss
+        return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss]#, rho_loss] ### maybe fix the passing here at some point
 
 class networkTrainer:
     def __init__(
@@ -326,8 +325,8 @@ class networkTrainer:
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
-            rho = self.model(corr)
-            total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err=err, rho_true = rho_true)
+            rho_pred = self.model(corr)
+            total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho_pred, y_true = corr, err=err, rho_true = rho_true)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))    
