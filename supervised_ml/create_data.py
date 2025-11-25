@@ -303,9 +303,9 @@ class create_datset:
             self
             ):
         one_dat = []
-        A = np.linspace(0.1, 1.1, 2)
-        M = np.linspace(0.5, 1.1, 2)
-        G = np.linspace(0.3, 1.1, 2)
+        A = np.linspace(0.1, 1.1, 10)
+        M = np.linspace(0.5, 1.1, 10)
+        G = np.linspace(0.3, 1.1, 10)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -470,7 +470,7 @@ class create_datset:
                 np.save(f, train_dat)
             with open(os.path.join("spf_datasets/", val_file), 'wb') as f:
                 np.save(f, val_dat)
-        
+
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Files created at:", train_file)

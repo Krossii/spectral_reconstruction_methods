@@ -303,7 +303,7 @@ class LossCalculator:
         l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
         total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss + rho_loss
-        return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss]#, rho_loss] ### maybe fix the passing here at some point
+        return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss, rho_loss] ### maybe fix the passing here at some point
 
 class networkTrainer:
     def __init__(
@@ -352,10 +352,10 @@ class networkTrainer:
         train_losses = []
         train_losses_ind = []
         step = 0
+
         for step, (X, y, z) in enumerate(dat):
             #plt.plot(X[0])
             #plt.plot(self.model(y)[0])
-            #plt.ylim(-0.5,3)
             #plt.savefig("debug.png")
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z, rho_true = X)
             train_losses.append(total_loss_value.numpy())
@@ -363,7 +363,7 @@ class networkTrainer:
                 individual_losses[i] = individual_losses[i].numpy()
             train_losses_ind.append(individual_losses)
             if verbose and step % 50 == 0:
-                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0]}, smooth: {individual_losses[1]}, l2: {individual_losses[2]}')#, rho: {individual_losses[3]}')
+                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0]}, smooth: {individual_losses[1]}, l2: {individual_losses[2]}, rho: {individual_losses[3]}')
         return train_losses, train_losses_ind
 
     def testloop(
@@ -556,45 +556,21 @@ class supervisedFit:
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
 
-
-        def normalize(
-                data, 
-                axis=None
-                ):
-            mean = np.mean(data, axis=axis, keepdims=True)
-            std = np.std(data, axis=axis, keepdims=True)
-            return (data - mean) / (std + 1e-8), mean, std
-
-        def denormalize(
-                data, 
-                mean, 
-                std
-                ):
-            return data * (std + 1e-8) + mean
-
         train_raw = self.get_data(train_file)
         validation_raw = self.get_data(validation_file)
         if verbose:
             print("Loaded the dataset")
         #assume one file for training and validation each
-        train_fcts = np.array([d['fct'] for d in train_raw])
-        train_corrs = np.array([d['corr'] for d in train_raw])
-        train_dat_errs = tf.data.Dataset.from_tensor_slices(np.array([d['noise'] for d in train_raw]))
-        train_fcts_norm, fct_mean, fct_std = normalize(train_fcts, axis=0)
-        train_corrs_norm, corr_mean, corr_std = normalize(train_corrs, axis=0)
+        train_fcts = tf.data.Dataset.from_tensor_slices(np.array([d['fct'] for d in train_raw]))
+        train_corrs = tf.data.Dataset.from_tensor_slices(np.array([d['corr'] for d in train_raw]))
+        train_errs = tf.data.Dataset.from_tensor_slices(np.array([d['noise'] for d in train_raw]))
 
-        validation_fcts = np.array([d['fct'] for d in validation_raw])
-        validation_corrs = np.array([d['corr'] for d in validation_raw])
-        validation_dat_errs = tf.data.Dataset.from_tensor_slices(np.array([d['noise'] for d in validation_raw]))
-        validation_fcts_norm = (validation_fcts - fct_mean) / (fct_std + 1e-8)
-        validation_corrs_norm = (validation_corrs - corr_mean) / (corr_std + 1e-8)
+        validation_fcts = tf.data.Dataset.from_tensor_slices(np.array([d['fct'] for d in validation_raw]))
+        validation_corrs = tf.data.Dataset.from_tensor_slices(np.array([d['corr'] for d in validation_raw]))
+        validation_errs = tf.data.Dataset.from_tensor_slices(np.array([d['noise'] for d in validation_raw]))
 
-        train_dat_fcts = tf.data.Dataset.from_tensor_slices(train_fcts_norm)
-        train_dat_corrs = tf.data.Dataset.from_tensor_slices(train_corrs_norm)
-        train_dat = tf.data.Dataset.zip((train_dat_fcts, train_dat_corrs, train_dat_errs))
-        validation_dat_fcts = tf.data.Dataset.from_tensor_slices(validation_fcts_norm)
-        validation_dat_corrs = tf.data.Dataset.from_tensor_slices(validation_corrs_norm)
-        validation_dat = tf.data.Dataset.zip((validation_dat_fcts, validation_dat_corrs, validation_dat_errs))
+        train_dat = tf.data.Dataset.zip((train_fcts, train_corrs, train_errs))
+        validation_dat = tf.data.Dataset.zip((validation_fcts, validation_corrs, validation_errs))
     
         train_dat = train_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
         validation_dat = validation_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
