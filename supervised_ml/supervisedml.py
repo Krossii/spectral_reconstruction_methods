@@ -316,7 +316,7 @@ class networkTrainer:
        self.optimizer = optimizer
        self.loss_calculator = loss_calculator
 
-    @tf.function
+    @tf.function(reduce_retracing=True)
     def train_step(
             self, 
             epoch: int, 
@@ -355,8 +355,9 @@ class networkTrainer:
 
         for step, (X, y, z) in enumerate(dat):
             #plt.plot(X[0])
-            #plt.plot(self.model(y)[0])
-            #plt.savefig("debug.png")
+            plt.plot(self.model(y)[0])
+            plt.ylim(-0.1,12)
+            plt.savefig("debug.png")
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z, rho_true = X)
             train_losses.append(total_loss_value.numpy())
             for i in range(len(individual_losses)):
@@ -541,7 +542,12 @@ class supervisedFit:
         if self.networkStructure != "SupervisedNN" and self.networkStructure != "KadesFC" and self.networkStructure != "KadesConv":
             raise ValueError("Invalid choice of network")
         
-        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate[0], clipvalue = 1.0)
+
+        if len(self.learning_rate) == 1:
+            lr = self.learning_rate[0]
+        else:
+            lr = tf.keras.optimizers.schedules.PolynomialDecay(self.learning_rate[0], self.learning_rate[2], self.learning_rate[1], power=0.5)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
         training_total_loss_history = []
         training_loss_history = []
         validation_total_loss_history = []
