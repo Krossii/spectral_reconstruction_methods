@@ -122,7 +122,7 @@ def get_default_model(
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapz(exact, x=w)/np.trapz(np.ones(len(exact)), x=w)
+            m_0 = 1#np.trapz(exact, x=w)/np.trapz(np.ones(len(exact)), x=w)
             def_model = np.ones(len(exact))
             return def_model*m_0
         else:
@@ -318,6 +318,9 @@ class mem:
         G_pred = Di(kernel, rho/(2*np.pi), self.delomega)
         S = np.sum(rho - def_model - rho * np.nan_to_num(np.log(rho/def_model), neginf = -1e300))
         L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
+        if np.isnan(rho).any():
+            print("Warning: NaN value in rho detected")
+            rho = np.nan_to_num(rho, nan=1e-300)
         print("S, L, Q:", S, L, al*S-L)
         return rho
 
@@ -411,6 +414,8 @@ class mem:
             return np.mean(rho, axis=0), P_alphaDHM, P_alphaDHM_red, alpha_int, Hess_mat
         for i in range(len(self.w)):
             rho_out[i] = integrate.trapezoid(np.transpose(rho_red)[i][:] * P_alphaDHM_red/normalizing_fac, alpha_int)
+        print(P_alphaDHM_red/normalizing_fac)
+        print(P_alphaDHM/normalizing_fac)
         return rho_out, P_alphaDHM/normalizing_fac, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
 
     def step3(

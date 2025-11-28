@@ -115,7 +115,7 @@ def load_MEM():
         else:
             K=KL_kernel_Position_FiniteT(tau, w, 1/Nt)
     if temp == "zero_T":
-        K=KL_kernel_Position_Vacuum(tau, w)
+        K=KL_kernel_Omega(KL_kernel_Position_Vacuum, tau, w)
 
     # --- load the predicted spectral function ---
 
@@ -124,7 +124,7 @@ def load_MEM():
         predicted_spf_bins = np.zeros((len(noise), N_samples-1, len(w)))
         spf_var = np.zeros((len(noise), len(w)))
         for i in range(len(noise)):
-            spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
+            spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}OverOmega_{temp}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
             predicted_spf[i][:] = spf_data[:,1]
             spf_var[i][:] = spf_data[:,2]
             for j in range(N_samples-1):
@@ -426,8 +426,8 @@ def comparing_mock(
     rho_err_g = divbyOmega(rho_err_g, w)
     rho_bg = divbyOmega(rho_bg, w)
     rho_err_bg = divbyOmega(rho_err_bg, w)
-    rho_mem = divbyOmega(rho_mem, w)
-    rho_err_mem = divbyOmega(rho_err_mem, w)
+    #rho_mem = divbyOmega(rho_mem, w)
+    #rho_err_mem = divbyOmega(rho_err_mem, w)
 
     omega=w[1:]
     rho_input = rho_input[1:]
@@ -443,10 +443,10 @@ def comparing_mock(
     plt.plot(omega, rho_input, label = "Input ρ", color = "k")
     #plt.plot(w, rho_gauss, label="Gaussian", color="tomato")
     #plt.plot(w, rho_bg, label="BG", color="mediumseagreen")
-    #plt.plot(w, rho_mem, label="MEM", color="violet")
+    plt.plot(omega, rho_mem, label="MEM", color="violet")
     plt.fill_between(omega, rho_gauss - rho_err_g, rho_gauss + rho_err_g, color = "tomato", alpha = 0.5, label="Gaussian")
     plt.fill_between(omega, rho_bg - rho_err_bg, rho_bg + rho_err_bg, color = "mediumseagreen", alpha = 0.5, label = "BG")
-    plt.fill_between(omega, rho_mem - rho_err_mem, rho_mem + rho_err_mem, color = "violet", alpha = 0.5, label = "MEM")
+    #plt.fill_between(omega, rho_mem - rho_err_mem, rho_mem + rho_err_mem, color = "violet", alpha = 0.5, label = "MEM")
     plt.legend()
     plt.ylim(0,1.7)
     plt.ylabel(r"$\rho (\omega) / \omega$")
@@ -484,6 +484,6 @@ else:
     #plotting_unsupervised(predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err)
 
 if mock_data:
-    plt.savefig(f"Comparison_{extr_Q}Oomega_{function}_{temp}_Nt{Nt}_noises{noise[0]}.png")
+    plt.savefig(f"Comparison_{extr_Q}Oomega_{function}_{temp}_Nt{Nt}_noises{noise[0]}_nmem.png")
 else:
     plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")
