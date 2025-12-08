@@ -297,13 +297,13 @@ class LossCalculator:
             y_pred: tf.Tensor = None,
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
-        y_pred = Di(self.kernel, rho, self.delomega)
+        y_pred = Di(self.kernel, rho/(2*np.pi), self.delomega)
         main_loss = self.custom_loss(y_pred, err, y_true)
         smooth_loss = self.smoothness_loss(rho)
         l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
-        total_loss_value = rho_loss
-        #total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss + rho_loss
+        #total_loss_value = rho_loss
+        total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss + rho_loss
         return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss, rho_loss] ### maybe fix the passing here at some point
 
 class networkTrainer:
@@ -355,10 +355,16 @@ class networkTrainer:
         step = 0
 
         for step, (X, y, z) in enumerate(dat):
-            plt.clf() 
+            tau = np.arange(16)
+            plt.clf()
+            plt.figure(figsize=(12,4))
+            plt.subplot(1,2,1) 
             plt.plot(X[0])
             plt.plot(self.model(y)[0])
-            plt.ylim(-0.1,2.5)
+            plt.ylim(-0.1,3.5)
+            plt.subplot(1,2,2)
+            plt.scatter(tau, y[:][0], marker = 'x')
+            plt.scatter(tau, Di(self.loss_calculator.kernel, self.model(y)[0]/(2*np.pi), self.loss_calculator.del_omega), marker = 'o')
             plt.savefig("debug.png")
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z, rho_true = X)
             train_losses.append(total_loss_value.numpy())
