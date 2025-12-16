@@ -243,7 +243,7 @@ class mem:
         for i in range(len(self.alpha)):
             rho_min_array = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
             rho_min[i][:] = rho_min_array
-            G_rho = Di(kernel, rho_min[i][:]/(2*np.pi), self.delomega) 
+            G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
         plt.figure(1, figsize=(12,4))
         plt.subplot(1,2,1)
@@ -274,7 +274,7 @@ class mem:
             
         def func(b):
             rho = self.def_model *np.exp(U @ b)
-            G_rho = Di(kernel, rho/(2*np.pi), self.delomega) 
+            G_rho = Di(kernel, rho, self.delomega) 
             g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
             f = -al * b - g
             """plt.figure(1)
@@ -292,7 +292,7 @@ class mem:
         
         def jac(b):
             rho = self.def_model *np.exp(U @ b)
-            diag_rho_U = np.diag(rho/(2*np.pi)) @ U 
+            diag_rho_U = np.diag(rho) @ U 
             A = (kernel @ diag_rho_U) * self.delomega
             J_nonlinear = VXi.T @ self.cov_mat_inv @ A
             J = -al * np.eye(N_s) - J_nonlinear
@@ -300,7 +300,7 @@ class mem:
 
         # --- diagnostics ---
         rho_guess = self.def_model * np.exp(U @ u_guess)
-        G_rho_guess = Di(kernel, rho_guess/(2*np.pi), self.delomega) 
+        G_rho_guess = Di(kernel, rho_guess, self.delomega) 
         diff_guess = G_rho_guess - corr
         g_guess = VXi.T @ self.cov_mat_inv @ diff_guess
         print(f"alpha: {al:.3e}")
@@ -315,7 +315,7 @@ class mem:
 
         u = sol.x
         rho = self.def_model * np.exp(U @ u)
-        G_pred = Di(kernel, rho/(2*np.pi), self.delomega)
+        G_pred = Di(kernel, rho, self.delomega)
         S = np.sum(rho - def_model - rho * np.nan_to_num(np.log(rho/def_model), neginf = -1e300))
         L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
         print("S, L, Q:", S, L, al*S-L)
@@ -360,7 +360,7 @@ class mem:
             
             evs[i][:] = eigval
             S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
-            G = Di(kernel, rho[i][:]/(2*np.pi), self.delomega) 
+            G = Di(kernel, rho[i][:], self.delomega) 
             diff = corr - G
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
             prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
