@@ -4,6 +4,7 @@ from scipy.linalg import solve
 from scipy.optimize import root
 from scipy.optimize import minimize
 from scipy.optimize import check_grad
+from scipy.optimize import least_squares
 from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
@@ -29,20 +30,6 @@ import itertools
 from typing import List, Tuple, Callable
 
 np.random.seed(2000)
-
-def trunc(
-        values, 
-        dec = 0
-        ):
-    return np.trunc(values * 10**dec) / 10**dec # truncate to dec decimal places - primarily for Hessian in step 2 of mem
-
-def KL_kernel_asakawa(
-        Position, 
-        Omega
-        ):
-    Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
-    ker = np.exp(-Omega * np.abs(Position))
-    return ker
 
 def KL_kernel_Momentum(
         Momentum, 
@@ -99,15 +86,15 @@ def Di(
         rhoi, 
         delomega
         ) -> np.ndarray:
-    # Ensure both tensors are of the same data type (float32)
-    KL = KL.astype(dtype=np.float32)  # Cast KL to float32
-    rhoi = rhoi.astype(dtype=np.float32)  # Cast rhoi to float32
-    delomega = delomega.astype(dtype=np.float32)  # Cast delomega to float32
+    # Ensure both tensors are of the same data type (float64)
+    KL = KL.astype(dtype=np.float64)  # Cast KL to float64
+    rhoi = rhoi.astype(dtype=np.float64)  # Cast rhoi to float64
+    delomega = delomega.astype(dtype=np.float64)  # Cast delomega to float64
 
     rhoi = np.reshape(rhoi, [-1, 1])
 
     # Perform matrix multiplication
-    dis = np.matmul(KL, rhoi)
+    dis = KL @ rhoi
     dis = np.squeeze(dis, axis=-1)  # Remove the singleton dimension
     dis = dis * delomega  # Multiply by delomega
     return dis
@@ -115,23 +102,27 @@ def Di(
 def get_default_model(
         w: np.ndarray, 
         defmod: str, 
-        file: str = ""
+        file: str = "",
+        ExtractedQuantity: str = "RhoOverOmega"
         ) -> np.ndarray:
     def_model = np.ones(len(w))
     if defmod == "constant":
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapz(exact, x=w)/np.trapz(np.ones(len(exact)), x=w)
+            m_0 = integrate.trapezoid(exact, x=w)/integrate.trapezoid(np.ones(len(exact)), x=w)
             def_model = np.ones(len(exact))
-            return def_model*m_0
+            if ExtractedQuantity == "RhoOverOmega":
+                return def_model*w + m_0#*m_0
+            else:
+                return def_model*m_0
         else:
             return def_model
     if defmod == "quadratic":
         if file != "":
             data = np.loadtxt(file)
             exact = data[:,1]
-            m_0 = np.trapz(exact, x=w) / (np.trapz(w**2, x=w))
+            m_0 = integrate.trapezoid(exact, x=w) / (integrate.trapezoid(w**2, x=w))
             def_model = m_0* w**2
             return def_model
         else:
@@ -178,49 +169,20 @@ class mem:
         elif extractedQuantity=="Rho" and finiteT_kernel:
             kernel=KL_kernel_Position_FiniteT(x,omega,1/Nt)
         elif extractedQuantity=="Rho" and finiteT_kernel==False:
-            #kernel=KL_kernel_asakawa(x, omega)
             kernel=KL_kernel_Position_Vacuum(x,omega)
         else:
             raise ValueError("Invalid choice spectral function target")
         return kernel
 
-    """def alt_step1(
-            self,
-            corr: np.ndarray,
-            kernel: np.ndarray
-        ) -> np.ndarray:
-        #Alternative step 1 implementation using dual solver method 
-        
-        def dual_prob(y):
-            # eq 17 from paper
-            logexp = Z * np.log(np.sum(self.def_model * np.exp(kernel @ y - np.linalg.inv(self.cov_mat_inv))))
-            d = self.alpha/2 * y.T @ np.linalg.inv(self.cov_mat_inv) @ y + np.outer(corr, y) + logexp - Z * np.log(Z)
-            return d        # should this really return d and not a tuple?
-
-
-        def func(Z):
-            # eq A2 from paper
-            V = root() # should this really be V?
-            V_prime = - np.log(np.sum(self.def_model * np.exp(kernel @ y))) + np.log(Z) + 1
-            return V_prime
-
-        # y is vector of size N_t
-        # Z is scalar
-        # recheck all of the C's in the paper against the cov mats you put here
-
-        bin_search = root(func) # recheck the methods you should use here
-
-    return rho_min"""
-
-
     def step1(
             self, 
             corr: np.ndarray, 
-            kernel: np.ndarray
+            kernel: np.ndarray,
             ) -> np.ndarray:
         """Minimization of Q = alpha S - L for all alpha as per MEM paper step 1"""
         U, xi, Vt = np.linalg.svd(kernel.T, full_matrices=False)
-        xi = np.array(list(itertools.takewhile(lambda x: x > 1e-10, xi)))
+        cutoff = 1e-10 * xi[0]  # relative to largest singular value
+        xi = xi[xi > cutoff]
         s = xi.size
         Vt = Vt[:s,:]
         U = U[:,:s]
@@ -231,7 +193,7 @@ class mem:
         M = VXi.T @ self.cov_mat_inv @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
 
-        u_g = np.random.rand(M.shape[0]) 
+        u_g = np.zeros(M.shape[0], dtype=float)
 
         #def getRhoMin(al):
         #    return self.minimizer(corr, VXi, M, U, al, u_g, kernel)
@@ -241,8 +203,9 @@ class mem:
 
 
         for i in range(len(self.alpha)):
-            rho_min_array = self.minimizer(corr, VXi, M, U, self.alpha[i], u_g, kernel)
+            rho_min_array = self.minmizer_lsq(corr, VXi, M, U, self.alpha[i], u_g, kernel)
             rho_min[i][:] = rho_min_array
+            u_g = np.linalg.lstsq(U, np.log(rho_min_array / self.def_model), rcond=None)[0]
             G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
         plt.figure(1, figsize=(12,4))
@@ -259,6 +222,63 @@ class mem:
         plt.savefig("mem_alpha_scan.png")
         return rho_min
     
+    def minmizer_lsq(
+        self,
+        corr: np.ndarray,
+        VXi: np.ndarray,
+        M: np.ndarray,
+        U: np.ndarray,
+        al: float,
+        u_guess: np.ndarray,
+        kernel: np.ndarray
+    ) -> np.ndarray:
+        #print("corr:", corr, "k @ def_model:", Di(kernel, self.def_model, self.delomega))
+        N_s = M.shape[0]
+        def residual(b):
+            rho = self.def_model *np.exp(U @ b)
+            G_rho = Di(kernel, rho, self.delomega) 
+            g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
+            f = -al * b - g
+            return f
+
+        def jac(b):
+            rho = self.def_model *np.exp(U @ b)
+            diag_rho_U = np.diag(rho) @ U 
+            A = (kernel @ diag_rho_U) * self.delomega
+            J_nonlinear = VXi.T @ self.cov_mat_inv @ A
+            J = -al * np.eye(N_s) - J_nonlinear
+            return J
+
+        res = least_squares(
+            residual,
+            u_guess,
+            jac= jac, #'2-point'
+            method='lm', #trf
+            max_nfev=20000,
+            xtol=1e-10,
+            ftol=1e-10,
+            gtol=1e-10,
+            verbose=1
+        )
+
+        if not res.success:
+            print("least_squares failed:", res.message)
+            print(f"But cost decreased from initial: {res.cost:.3e}")
+            print(f"First-order optimality: {res.optimality:.3e}")
+        # Check if solution is acceptable despite non-convergence
+        if res.optimality < 1e-4:  # This is already quite good
+            print("Solution appears acceptable, continuing...")
+        else:
+            print("Warning: Solution may not be reliable")
+
+        u = res.x
+        rho = self.def_model * np.exp(U @ u)
+        G_pred = Di(kernel, rho, self.delomega)
+        S = np.sum(rho - self.def_model - rho * np.nan_to_num(np.log(rho/self.def_model), neginf = -1e300)) * self.delomega
+        L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
+        print(f"  S={S:.4e}, L={L:.4e}, Q={al*S-L:.4e}")
+        return rho
+
     def minimizer(
         self,
         corr: np.ndarray, 
@@ -316,7 +336,7 @@ class mem:
         u = sol.x
         rho = self.def_model * np.exp(U @ u)
         G_pred = Di(kernel, rho, self.delomega)
-        S = np.sum(rho - def_model - rho * np.nan_to_num(np.log(rho/def_model), neginf = -1e300))
+        S = np.sum(rho - def_model - rho * np.nan_to_num(np.log(rho/def_model), neginf = -1e300)) * self.delomega
         L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
         print("S, L, Q:", S, L, al*S-L)
         return rho
@@ -359,12 +379,13 @@ class mem:
             
             
             evs[i][:] = eigval
-            S[i] = np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))
+            S[i] = (np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))) * self.delomega
             G = Di(kernel, rho[i][:], self.delomega) 
             diff = corr - G
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
             prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
             exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
+        print(P_alphaHM, prefactor, np.exp(self.alpha @ S - L))
         P_alphaDHM = P_alphaHM * exp
 
         # --- diagnostics ---
@@ -393,7 +414,7 @@ class mem:
 
         alpha_ind = []
         for i in range(len(self.alpha)):
-            if P_alphaDHM[i] >= 10e-8 * P_alphaDHM.max():
+            if P_alphaDHM[i] >= 1e-8 * P_alphaDHM.max():
                 alpha_ind.append(i)
         alpha_int = np.zeros(len(alpha_ind))
         rho_red = np.zeros((len(alpha_ind), len(self.w)))
@@ -465,6 +486,7 @@ class mem:
         ) -> Tuple[np.ndarray, np.ndarray]:
         """Fit a correlator using the Maximum Entropy Method."""
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
+
         if verbose:
             print("*"*40)
             print("Starting minimization using svd")
@@ -600,7 +622,8 @@ class FitRunner:
         )
         self.default_model = get_default_model(self.omega, 
                                                self.parameterHandler.get_params()["default_model"], 
-                                               self.parameterHandler.get_params()["default_model_file"])
+                                               self.parameterHandler.get_params()["default_model_file"],
+                                               self.parameterHandler.get_extractedQuantity())
         self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
         if self.finiteT_kernel: temp = "finite_T"
         else: temp = "zero_T"

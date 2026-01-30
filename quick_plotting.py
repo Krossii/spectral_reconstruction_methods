@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 
 losshistory = False
 
-home_path = "/home/Christian/Desktop"
-method = "supervised_ml"
+home_path = "/mnt/c/Users/chris/OneDrive/Desktop"
+method = "mem"
 
 function = "BW"  # 2PGAUSS
 temp = "zero_T" # finite_T
@@ -15,7 +15,7 @@ B_field = 4
 Nt = 16
 
 mock_data = True
-noise = [4] # [2,3,4] currently this only allows a list of noise levels --- handle this dynamically later
+noise = [3] # [2,3,4] currently this only allows a list of noise levels --- handle this dynamically later
 
 N_samples = 10 # number of jackknife samples used in the reconstructions
 
@@ -349,10 +349,10 @@ def plotting_MEM(rho_input, rho_learned, rho_err, G_exact, G_err, G_learned, G_l
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
     if mock_data:
-        plt.plot(w, rho_input, label='True ρ', color='cornflowerblue')
+        plt.plot(w, np.squeeze(rho_input), label='True ρ', color='cornflowerblue')
         for i in range(len(noise)):
-            plt.plot(w, rho_learned[i][:], label=f"Noise{i+2}", color=colors[i])
-            plt.fill_between(w, rho_learned[i][:] - rho_err[i][:], rho_learned[i][:] + rho_err[i][:], color = colors[i], alpha = 0.5)
+            plt.plot(w, np.squeeze(rho_learned[i][:]), label=f"Noise{i+2}", color=colors[i])
+            plt.fill_between(w, np.squeeze(rho_learned[i][:]) - np.squeeze(rho_err[i][:]), np.squeeze(rho_learned[i][:]) + np.squeeze(rho_err[i][:]), color = colors[i], alpha = 0.5)
     else:
         plt.plot(w, rho_learned, label=f"Learned ρ", color="tomato")
         plt.fill_between(w, rho_learned-rho_err, rho_learned+rho_err, color = "tomato", alpha =0.5)
@@ -364,7 +364,7 @@ def plotting_MEM(rho_input, rho_learned, rho_err, G_exact, G_err, G_learned, G_l
     plt.title("Spectral Function")
 
     plt.subplot(1, 2, 2)
-    plt.errorbar(tau,  G_exact, yerr=G_err, label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
+    plt.errorbar(tau,  np.squeeze(G_exact), yerr=np.squeeze(G_err), label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
     if mock_data:
         for i in range(len(noise)):
             plt.errorbar(tau, G_learned[i][:], yerr=G_learned_err[i][:], label=f"Noise{i+2}", fmt = 'x', color=colors[i], capsize = 3, markeredgewidth = 1, elinewidth=1)
@@ -407,8 +407,8 @@ def plotting_BG_Gauss(rho_input, rho_learned, rho_err, G_exact, G_err, G_learned
 def plotting_ml(rho_learned, rho_err, G_exact, G_err, G_learned, G_learned_err):
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
-    plt.plot(w, rho_learned, label="Reconstructed ρ", color="tomato")
-    plt.fill_between(w, rho_learned - rho_err, rho_learned + rho_err, color = "tomato", alpha = 0.5)
+    plt.plot(w, np.squeeze(rho_learned), label="Reconstructed ρ", color="tomato")
+    plt.fill_between(w, np.squeeze(rho_learned) - np.squeeze(rho_err), np.squeeze(rho_learned) + np.squeeze(rho_err), color = "tomato", alpha = 0.5)
     plt.legend()
     plt.ylabel(r"$\rho (\omega)/ \omega$")
     plt.xlabel(r"$\omega$")
@@ -488,10 +488,10 @@ def comparing_mock(
 
     plt.tight_layout()
 
-#predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = load_MEM()
+predicted_spf, spf_var, G_output, G_output_err, default_model = load_MEM()
 #predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
 #predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = load_gaussian()
-predicted_spf, spf_var, G_output, G_output_err = load_supervised()
+#predicted_spf, spf_var, G_output, G_output_err = load_supervised()
 
 if losshistory:
     plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
@@ -503,9 +503,9 @@ else:
     else:
         plotting_MEM(true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)"""
     #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
-    plotting_ml(predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err)
+    plotting_MEM(true_spf, predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err, default_model)
 
 if mock_data:
-    plt.savefig(f"{extr_Q}_{function}_{temp}_Nt{Nt}_noises{noise[0]}.png")
+    plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
 else:
     plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")
