@@ -9,6 +9,10 @@ from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 
+
+# changed the signs in Q from -L to +L and changed the signs in S to -S
+
+
 #from latqcdtools.base.check import ignoreDivideByZero, ignoreInvalidValue, ignoreUnderflow, ignoreOverflow
 #from latqcdtools.base.speedify import parallel_function_eval
 #ignoreDivideByZero()
@@ -29,7 +33,6 @@ import os
 import itertools
 from typing import List, Tuple, Callable
 
-np.random.seed(2000)
 
 def KL_kernel_Momentum(
         Momentum, 
@@ -54,8 +57,8 @@ def KL_kernel_Position_FiniteT(
         ):
     Position = Position[:, np.newaxis]  # Reshape Position as column to allow broadcasting
     with np.errstate(divide='ignore'):
-        #if Omega[0] == 0:
-        #    Omega[0] = 1e-8
+        if Omega[0] == 0:
+            Omega[0] = 1e-8
 
         ker = np.cosh(Omega * (Position-1/(2*T))) / np.sinh(Omega/2/T)
 
@@ -109,24 +112,30 @@ def get_default_model(
     if defmod == "constant":
         if file != "":
             data = np.loadtxt(file)
-            exact = data[:,1]
-            m_0 = integrate.trapezoid(exact, x=w)/integrate.trapezoid(np.ones(len(exact)), x=w)
-            def_model = np.ones(len(exact))
-            if ExtractedQuantity == "RhoOverOmega":
-                return def_model*w + m_0#*m_0
-            else:
-                return def_model*m_0
+            omega_file = data[:, 0]
+            exact = data[:, 1]
+            m_0 = np.trapz(exact, x=omega_file) / (omega_file[-1] - omega_file[0])
+            #if ExtractedQuantity == "RhoOverOmega":
+            #    def_model = np.ones(len(w)) * m_0 / w
+            #    def_model[w == 0] = 1e3  # Avoid division by zero
+            #    return def_model
+            #else:
+            return np.ones(len(w)) * m_0
         else:
-            return def_model
+            return np.ones(len(w)) * 1e-3
     if defmod == "quadratic":
         if file != "":
             data = np.loadtxt(file)
-            exact = data[:,1]
-            m_0 = integrate.trapezoid(exact, x=w) / (integrate.trapezoid(w**2, x=w))
-            def_model = m_0* w**2
+            omega_file = data[:, 0]
+            exact = data[:, 1]
+            # Normalize to match integral
+            m_0 = np.trapz(exact, x=omega_file) / np.trapz(omega_file**2, x=omega_file)
+            def_model = m_0 * w**2
+            #def_model[w == 0] = m_0
             return def_model
         else:
             def_model = w**2
+            def_model = np.maximum(def_model, 1e-10)
             return def_model
     if defmod == "asakawa":
         m_0 = 0.0257
@@ -134,7 +143,7 @@ def get_default_model(
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
         def_model = data[:, 1]
-        return w*def_model
+        return def_model
     raise ValueError("Invalid choice of default model")
 
 class mem:
@@ -203,9 +212,18 @@ class mem:
 
 
         for i in range(len(self.alpha)):
-            rho_min_array = self.minmizer_lsq(corr, VXi, M, U, self.alpha[i], u_g, kernel)
+            rho_min_array = self.minmizer_root(corr, VXi, M, U, self.alpha[i], u_g, kernel)
             rho_min[i][:] = rho_min_array
-            u_g = np.linalg.lstsq(U, np.log(rho_min_array / self.def_model), rcond=None)[0]
+            rho_safe = np.maximum(rho_min_array, 1e-300)
+            def_model_safe = np.maximum(self.def_model, 1e-300)
+            log_ratio = np.log(rho_safe / def_model_safe)
+
+            # Check for NaN/Inf before proceeding
+            if np.any(~np.isfinite(log_ratio)):
+                print(f"  ⚠ Warning: NaN in log(rho/m), using zeros for u_g")
+                u_g = np.zeros(M.shape[0])
+            else:
+                u_g = np.linalg.lstsq(U, log_ratio, rcond=None)[0]
             G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
         plt.figure(1, figsize=(12,4))
@@ -213,16 +231,24 @@ class mem:
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:])
         plt.plot(self.w, self.def_model, color = "black", linestyle = "--")
-        plt.ylim(-0.1,3)
         plt.subplot(1,2,2)
         plt.scatter(self.tau, corr, color = "tomato", marker = "x")
         plt.scatter(self.tau, G_rho, color = "cornflowerblue", marker = "x")
         plt.yscale("log")
         plt.tight_layout()
         plt.savefig("mem_alpha_scan.png")
+        # Auto-select optimal alpha
+        alpha_opt, rho_opt, idx_opt = self.select_optimal_alpha_from_scan(
+            rho_min, corr, kernel, method='lcurve')
+        
+        print(f"\nSelected optimal α = {alpha_opt:.4e}")
+        G_final = Di(kernel, rho_opt, self.delomega)
+        L_final = 0.5 * (corr - G_final) @ self.cov_mat_inv @ (corr - G_final)
+        print(f"  χ²/N = {2*L_final/len(corr):.3f}\n")
+        
         return rho_min
     
-    def minmizer_lsq(
+    def minmizer_root(
         self,
         corr: np.ndarray,
         VXi: np.ndarray,
@@ -232,51 +258,98 @@ class mem:
         u_guess: np.ndarray,
         kernel: np.ndarray
     ) -> np.ndarray:
-        #print("corr:", corr, "k @ def_model:", Di(kernel, self.def_model, self.delomega))
+        """Minimize Q = alpha*S + L using root finding"""        
         N_s = M.shape[0]
+        
         def residual(b):
-            rho = self.def_model *np.exp(U @ b)
+            """Gradient of Q (should equal zero at optimum)"""
+            rho = self.def_model * np.exp(U @ b)
             G_rho = Di(kernel, rho, self.delomega) 
             g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
             f = -al * b - g
             return f
 
         def jac(b):
-            rho = self.def_model *np.exp(U @ b)
+            """Jacobian of gradient (Hessian of Q)"""
+            rho = self.def_model * np.exp(U @ b)
             diag_rho_U = np.diag(rho) @ U 
             A = (kernel @ diag_rho_U) * self.delomega
             J_nonlinear = VXi.T @ self.cov_mat_inv @ A
             J = -al * np.eye(N_s) - J_nonlinear
             return J
 
-        res = least_squares(
+        # Primary solver: hybr
+        res = root(
             residual,
             u_guess,
-            jac= jac, #'2-point'
-            method='lm', #trf
-            max_nfev=20000,
-            xtol=1e-10,
-            ftol=1e-10,
-            gtol=1e-10,
-            verbose=1
+            jac=jac,
+            method='hybr',
+            options={
+                'maxfev': 5000,
+                'xtol': 1e-8,
+                'factor': 0.1
+            }
         )
 
+        # Fallback if hybr fails
         if not res.success:
-            print("least_squares failed:", res.message)
-            print(f"But cost decreased from initial: {res.cost:.3e}")
-            print(f"First-order optimality: {res.optimality:.3e}")
-        # Check if solution is acceptable despite non-convergence
-        if res.optimality < 1e-4:  # This is already quite good
-            print("Solution appears acceptable, continuing...")
-        else:
-            print("Warning: Solution may not be reliable")
-
+            res = root(
+                residual,
+                u_guess,
+                jac=jac,
+                method='lm',
+                options={
+                    'maxiter': 5000,
+                    'xtol': 1e-8,
+                    'ftol': 1e-8
+                }
+            )
+        
+        # Extract solution
         u = res.x
+        # Check if solution actually changed from initial guess
+        u_change = np.linalg.norm(u - u_guess)
+        if u_change < 1e-6:
+            print(f"    ⚠ WARNING: Solution didn't change from initial guess!")
+            print(f"    This usually means optimizer failed or alpha is too small")
+        
         rho = self.def_model * np.exp(U @ u)
         G_pred = Di(kernel, rho, self.delomega)
-        S = np.sum(rho - self.def_model - rho * np.nan_to_num(np.log(rho/self.def_model), neginf = -1e300)) * self.delomega
+
+        # Check if rho is reasonable
+        rho_change = np.linalg.norm(rho - self.def_model)
+        if rho_change < 1e-6:
+            print(f"    ⚠ WARNING: rho is identical to default model!")
+
+        
+        # Compute quality metrics
+        final_res = residual(u)
+        res_norm = np.linalg.norm(final_res)
+
+        # Check convergence quality
+        if not res.success:
+            print(f"    ✗ Optimizer failed: {res.message}")
+            if res_norm > 1e-2:
+                print(f"    ✗ SEVERE: ||∇Q||={res_norm:.2e} - returning default model!")
+                # Return default model if optimizer completely failed
+                return self.def_model
+        
+        if res_norm > 1e-3:
+            print(f"    ⚠ Poor convergence: ||∇Q||={res_norm:.2e}")
+        
+        S = np.sum(rho - self.def_model - 
+                rho * np.nan_to_num(np.log(rho/self.def_model), 
+                                    neginf=-1e300)) * self.delomega
         L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
-        print(f"  S={S:.4e}, L={L:.4e}, Q={al*S-L:.4e}")
+        Q = al * S - L
+        
+        # Concise status output
+        status = "✓" if res.success else "✗"
+        print(f"  α={al:.2e} {status} ||∇Q||={res_norm:.2e} S={S:.3e} L={L:.3e} Q={Q:.3e}")
+        
+        if res_norm > 1e-3:
+            print(f"    ⚠ Large gradient! Solution may be poor.")
+        
         return rho
 
     def minimizer(
@@ -290,7 +363,6 @@ class mem:
         kernel: np.ndarray
         ) -> np.ndarray:
         N_s = M.shape[0]
-        def_model = self.def_model
             
         def func(b):
             rho = self.def_model *np.exp(U @ b)
@@ -336,7 +408,7 @@ class mem:
         u = sol.x
         rho = self.def_model * np.exp(U @ u)
         G_pred = Di(kernel, rho, self.delomega)
-        S = np.sum(rho - def_model - rho * np.nan_to_num(np.log(rho/def_model), neginf = -1e300)) * self.delomega
+        S = np.sum(rho - self.def_model - rho * np.nan_to_num(np.log(rho/self.def_model), neginf = -1e300)) * self.delomega
         L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
         print("S, L, Q:", S, L, al*S-L)
         return rho
@@ -385,7 +457,8 @@ class mem:
             L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
             prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
             exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
-        print(P_alphaHM, prefactor, np.exp(self.alpha @ S - L))
+        print("S-L:", self.alpha * S-L)
+        print("prefactor, e(a*S-L)", prefactor, np.exp(self.alpha * S - L))
         P_alphaDHM = P_alphaHM * exp
 
         # --- diagnostics ---
@@ -398,14 +471,14 @@ class mem:
         plt.subplot(1,3,2)
         plt.plot(self.alpha, P_alphaDHM, color = "tomato")
         plt.plot(self.alpha, prefactor, color = "cornflowerblue", alpha = 0.5)
-        plt.plot(self.alpha, np.exp(self.alpha*S - L), color = "green", alpha = 0.5)
+        plt.plot(self.alpha, np.exp(self.alpha*S + L), color = "green", alpha = 0.5)
         plt.xscale("log")
         plt.xlabel("alpha")
         plt.ylabel("P[alpha|D,H,M]")
         plt.subplot(1,3,3)
         plt.plot(self.alpha, self.alpha*S, color = "tomato")
         plt.plot(self.alpha, L, color = "cornflowerblue")
-        plt.plot(self.alpha, self.alpha*S - L, color = "green")
+        plt.plot(self.alpha, self.alpha*S + L, color = "green")
         plt.xlabel("alpha")
         plt.ylabel("Q, L, alpha*S")
         plt.tight_layout()
@@ -474,6 +547,182 @@ class mem:
         rho_out_var = integrate.trapezoid(integrand, alpharegion)
         return rho_out_var
 
+    def select_optimal_alpha_from_scan(self, rho_min, corr, kernel, method='lcurve'):        
+        S_vals = np.zeros(len(self.alpha))
+        L_vals = np.zeros(len(self.alpha))
+        
+        print("\n" + "="*60)
+        print("AUTO-ALPHA SELECTION")
+        print("="*60)
+        
+        for i in range(len(self.alpha)):
+            rho = rho_min[i]
+            S_vals[i] = np.sum(rho - self.def_model - 
+                            rho * np.nan_to_num(np.log(rho/self.def_model), 
+                                                neginf=-1e300)) * self.delomega
+            G_pred = Di(kernel, rho, self.delomega)
+            L_vals[i] = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
+        
+        Q_vals = self.alpha * S_vals - L_vals
+
+        print(f"\nS values: min={S_vals.min():.3e}, max={S_vals.max():.3e}")
+        print(f"L values: min={L_vals.min():.3e}, max={L_vals.max():.3e}")
+        print(f"Q values: min={Q_vals.min():.3e}, max={Q_vals.max():.3e}")
+        print(f"\nFirst 5 Q values: {Q_vals[:5]}")
+        print(f"Last 5 Q values: {Q_vals[-5:]}")
+        
+        # Check for identical solutions
+        unique_rhos = []
+        for i, rho in enumerate(rho_min):
+            is_unique = True
+            for unique_rho in unique_rhos:
+                if np.allclose(rho, unique_rho, rtol=1e-6):
+                    print(f"  α[{i}]={self.alpha[i]:.2e} gives identical rho to previous alpha")
+                    is_unique = False
+                    break
+            if is_unique:
+                unique_rhos.append(rho)
+    
+        print(f"\nNumber of unique solutions: {len(unique_rhos)} / {len(self.alpha)}")
+        
+        alpha_lcurve, idx_lcurve = self._lcurve_alpha(S_vals, L_vals)
+        alpha_chi2, idx_chi2 = self._chi2_alpha(L_vals, len(corr))
+        
+        chi2_lcurve = 2 * L_vals[idx_lcurve] / len(corr)
+        chi2_chi2 = 2 * L_vals[idx_chi2] / len(corr)
+        
+        print(f"\nL-curve method: α = {alpha_lcurve:.4e}, χ²/N = {chi2_lcurve:.3f}")
+        print(f"Chi² method:    α = {alpha_chi2:.4e}, χ²/N = {chi2_chi2:.3f}")
+        
+        if method == 'lcurve' or method == 'both':
+            idx_opt = idx_lcurve
+            alpha_opt = alpha_lcurve
+            print(f"Using L-curve: α = {alpha_opt:.4e}")
+        else:
+            idx_opt = idx_chi2
+            alpha_opt = alpha_chi2
+            print(f"Using Chi²: α = {alpha_opt:.4e}")
+        
+        rho_opt = rho_min[idx_opt]
+        self._plot_alpha_diagnostics(S_vals, L_vals, Q_vals, corr, kernel, 
+                                    rho_min, idx_opt, alpha_opt)
+        print("="*60 + "\n")
+        
+        return alpha_opt, rho_opt, idx_opt
+
+    def _lcurve_alpha(self, S_vals, L_vals):
+        """L-curve maximum curvature"""
+        valid = (L_vals > 0) & (np.abs(S_vals) > 1e-10)
+        
+        if np.sum(valid) < 5:
+            idx = np.argmin(L_vals)
+            return self.alpha[idx], idx
+        
+        alpha_v = self.alpha[valid]
+        S_v = np.abs(S_vals[valid])
+        L_v = L_vals[valid]
+        
+        log_S, log_L = np.log10(S_v), np.log10(L_v)
+        order = np.argsort(log_S)
+        log_S, log_L = log_S[order], log_L[order]
+        alpha_sorted = alpha_v[order]
+        
+        ds, dl = np.gradient(log_S), np.gradient(log_L)
+        dds, ddl = np.gradient(ds), np.gradient(dl)
+        
+        denom = np.maximum((ds**2 + dl**2)**(1.5), 1e-10)
+        curv = np.abs(ds * ddl - dl * dds) / denom
+        
+        if len(curv) > 4:
+            max_idx = np.argmax(curv[2:-2]) + 2
+        else:
+            max_idx = np.argmax(curv)
+        
+        alpha_opt = alpha_sorted[max_idx]
+        idx_opt = np.argmin(np.abs(self.alpha - alpha_opt))
+        return alpha_opt, idx_opt
+
+    def _chi2_alpha(self, L_vals, N_data, target=1.0):
+        """Chi-squared target method"""
+        chi2_per_N = 2 * L_vals / N_data
+        idx_opt = np.argmin(np.abs(chi2_per_N - target))
+        return self.alpha[idx_opt], idx_opt
+
+    def _plot_alpha_diagnostics(self, S_vals, L_vals, Q_vals, corr, kernel, 
+                                rho_min, idx_opt, alpha_opt):
+        """Diagnostic plots"""
+        import matplotlib.pyplot as plt
+        
+        fig = plt.figure(figsize=(15, 10))
+        
+        # L-curve
+        plt.subplot(2, 3, 1)
+        valid = (L_vals > 0) & (np.abs(S_vals) > 0)
+        plt.loglog(np.abs(S_vals[valid]), L_vals[valid], 'o-', alpha=0.6, markersize=4)
+        plt.loglog(np.abs(S_vals[idx_opt]), L_vals[idx_opt], 'r*', 
+                markersize=20, label=f'α={alpha_opt:.2e}', zorder=10)
+        plt.xlabel('|S|'); plt.ylabel('L'); plt.title('L-curve')
+        plt.legend(); plt.grid(True, alpha=0.3)
+        
+        # Q vs alpha
+        plt.subplot(2, 3, 2)
+        plt.semilogx(self.alpha, Q_vals, 'o-', markersize=4)
+        plt.axvline(alpha_opt, color='r', linestyle='--', linewidth=2)
+        plt.xlabel('α'); plt.ylabel('Q = αS - L'); plt.title('Quality Functional')
+        plt.grid(True, alpha=0.3)
+        
+        # S and L
+        ax3 = plt.subplot(2, 3, 3)
+        ax3_twin = ax3.twinx()
+        ax3.semilogx(self.alpha, np.abs(S_vals), 'b-o', alpha=0.6, markersize=4, label='|S|')
+        ax3_twin.semilogx(self.alpha, L_vals, 'r-s', alpha=0.6, markersize=4, label='L')
+        ax3.axvline(alpha_opt, color='k', linestyle='--', linewidth=2)
+        ax3.set_xlabel('α'); ax3.set_ylabel('|S|', color='b')
+        ax3_twin.set_ylabel('L', color='r'); ax3.set_title('Entropy & Likelihood')
+        ax3.grid(True, alpha=0.3)
+        
+        # Chi-squared
+        plt.subplot(2, 3, 4)
+        chi2_N = 2 * L_vals / len(corr)
+        plt.semilogx(self.alpha, chi2_N, 'o-', markersize=4)
+        plt.axhline(1.0, color='g', linestyle='--', linewidth=2, label='χ²/N = 1')
+        plt.axvline(alpha_opt, color='r', linestyle='--', linewidth=2)
+        plt.xlabel('α'); plt.ylabel('χ²/N')
+        plt.title(f'Reduced χ² (opt: {chi2_N[idx_opt]:.2f})')
+        plt.legend(); plt.grid(True, alpha=0.3)
+        
+        # Spectral functions
+        plt.subplot(2, 3, 5)
+        n_show = min(8, len(self.alpha))
+        for idx in np.linspace(0, len(self.alpha)-1, n_show, dtype=int):
+            if idx == idx_opt:
+                plt.plot(self.w, rho_min[idx], 'r-', linewidth=3, 
+                        label=f'α={self.alpha[idx]:.1e}', zorder=10)
+            else:
+                plt.plot(self.w, rho_min[idx], '-', linewidth=1, alpha=0.5)
+        plt.plot(self.w, self.def_model, 'k--', linewidth=2, label='Default')
+        plt.xlabel('ω'); plt.ylabel('ρ(ω)'); plt.title('Spectral Functions')
+        plt.legend(); plt.grid(True, alpha=0.3); plt.ylim(bottom=-0.1)
+        
+        # Fit
+        plt.subplot(2, 3, 6)
+        G_opt = Di(kernel, rho_min[idx_opt], self.delomega)
+        try:
+            error = np.sqrt(np.diag(np.linalg.inv(self.cov_mat_inv)))
+        except:
+            error = np.ones(len(corr)) * 0.001
+        tau = np.arange(len(corr))
+        plt.errorbar(tau, corr, yerr=error, fmt='o', color='tomato', 
+                    label='Data', capsize=3, markersize=6)
+        plt.plot(tau, G_opt, 'b-', linewidth=2, label='Fit')
+        plt.xlabel('τ'); plt.ylabel('G(τ)')
+        plt.title(f'Fit (χ²/N={chi2_N[idx_opt]:.2f})')
+        plt.legend(); plt.grid(True, alpha=0.3); plt.yscale('log')
+        
+        plt.tight_layout()
+        plt.savefig('alpha_selection_diagnostics.png', dpi=150)
+        print("Plots → alpha_selection_diagnostics.png")
+
     def fitCorrelator(
         self, 
         x: np.ndarray, 
@@ -491,9 +740,18 @@ class mem:
             print("*"*40)
             print("Starting minimization using svd")
         rho_min = self.step1(correlator, kernel)
+        # Use only optimal alpha for step2
+        #rho_min_for_step2 = np.array([rho_min[idx_opt]])
+        #alpha_backup = self.alpha
+        #self.alpha = np.array([self.alpha[idx_opt]])
         if verbose:
             print("*"*40)
             print("Starting calculation of probability distribution")
+        #rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min_for_step2, correlator, kernel)
+        
+        # Restore alpha array
+        #self.alpha = alpha_backup
+
         rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min, correlator, kernel)
         if np.any(np.isnan(rho_min)):
             print("*"*40)
@@ -603,6 +861,9 @@ class FitRunner:
             parameterHandler: ParameterHandler
             ):
         self.parameterHandler = parameterHandler
+        self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
+        if self.finiteT_kernel: temp = "finite_T"
+        else: temp = "zero_T"
         self.alpha = np.logspace(
             self.parameterHandler.get_params()["alpha_min"],
             self.parameterHandler.get_params()["alpha_max"],
@@ -615,18 +876,22 @@ class FitRunner:
             self.parameterHandler.get_params()["errorCol"],
             self.parameterHandler.get_correlator_cols()
         )
-        self.omega = np.linspace(
-            self.parameterHandler.get_params()["omega_min"],
-            self.parameterHandler.get_params()["omega_max"],
-            self.parameterHandler.get_params()["omega_points"]
-        )
+        if temp == "finite_T":
+            self.omega = np.linspace(
+                self.parameterHandler.get_params()["omega_min"],
+                self.parameterHandler.get_params()["omega_max"]/self.parameterHandler.get_params()["Nt"],
+                self.parameterHandler.get_params()["omega_points"]
+            )
+        else:
+            self.omega = np.linspace(
+                self.parameterHandler.get_params()["omega_min"],
+                self.parameterHandler.get_params()["omega_max"],
+                self.parameterHandler.get_params()["omega_points"]
+            )
         self.default_model = get_default_model(self.omega, 
                                                self.parameterHandler.get_params()["default_model"], 
                                                self.parameterHandler.get_params()["default_model_file"],
                                                self.parameterHandler.get_extractedQuantity())
-        self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
-        if self.finiteT_kernel: temp = "finite_T"
-        else: temp = "zero_T"
         self.verbose = self.parameterHandler.get_verbose()
         self.multiFit = self.parameterHandler.get_params()["multiFit"]
         self.extractedQuantity = self.parameterHandler.get_extractedQuantity()
