@@ -263,11 +263,18 @@ class correlators:
             self, 
             corr: np.ndarray
             ):
-        #this error handling is problematic somehow
         if np.all(corr):
-            noise = np.random.normal(
-                np.zeros(len(corr)), self.parameterHandler.get_params()["data_noise"]/corr, (len(corr))
-                )
+            sigma = [corr[tau] * (tau+1) for tau in range(len(corr)//2 + 1)]
+            noise_half = [
+                self.parameterHandler.get_params()["data_noise"] * np.random.normal(0, sigma[tau]) 
+                for tau in range(len(corr)//2 + 1)
+                ]
+            noise = np.zeros(len(corr))
+            for tau in range(len(corr)//2 + 1): 
+                noise[tau] = noise_half[tau]
+            for tau in range(1, len(corr)//2):
+                noise[len(corr)-tau] = noise_half[tau]
+            # symmetric noise
         else:
             print("Zero in correlator found")
             noise = np.zeros(len(corr))
@@ -303,9 +310,9 @@ class create_datset:
             self
             ):
         one_dat = []
-        A = np.linspace(0.1, 1.1, 20)
-        M = np.linspace(0.5, 1.1, 20)
-        G = np.linspace(0.3, 1.1, 20)
+        A = np.linspace(0.01, 0.1, 20)
+        M = np.linspace(0.05, 0.11, 20)
+        G = np.linspace(0.03, 0.11, 20)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -318,7 +325,7 @@ class create_datset:
                     #if np.max(normed_rho) >= 5:
                     #    print(A[i], M[j], G[k])
                     #normed_rho = rho
-                    corr = self.get_corr(self.w, self.tau, rho/(2*np.pi))
+                    corr = self.get_corr(self.w, self.tau, rho)
                     noise = self.noise(corr)
                     if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                         print("Nan value in single peaked BW")
@@ -344,7 +351,7 @@ class create_datset:
             for j in range(N_params**2):
                 for k in range(N_params**2):
                     rho = self.mbreit_wigner(self.w, A[i][:], M[j][:], G[k][:])
-                    normalizing_fac = np.trapezoid(rho, self.w)
+                    normalizing_fac = np.trapz(rho, self.w)
                     normed_rho = rho/normalizing_fac                    
                     if np.max(normed_rho) >= 5:
                         print(A[i][:], M[j][:], G[k][:])
@@ -633,11 +640,18 @@ def main(
         print("Creating datasets for the following parameters")
         pprint.pprint(parameterHandler.get_params())
 
-    omega = np.linspace(
-        parameterHandler.get_params()["omega_min"],
-        parameterHandler.get_params()["omega_max"],
-        parameterHandler.get_params()["omega_points"]
-    )
+    if parameterHandler.get_params()["FiniteT_kernel"]:
+        omega = np.linspace(
+            parameterHandler.get_params()["omega_min"],
+            parameterHandler.get_params()["omega_max"]/parameterHandler.get_params()["Nt"],
+            parameterHandler.get_params()["omega_points"]
+        )
+    else:
+        omega = np.linspace(
+            parameterHandler.get_params()["omega_min"],
+            parameterHandler.get_params()["omega_max"],
+            parameterHandler.get_params()["omega_points"]
+        )
     tau = np.arange(parameterHandler.get_params()["Nt"])
     specfuncs = spectral_functions(omega, parameterHandler.get_params()["extractedQuantity"])
     corrs = correlators(parameterHandler)

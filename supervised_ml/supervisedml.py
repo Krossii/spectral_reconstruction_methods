@@ -71,7 +71,8 @@ def Di(
     delomega = tf.cast(delomega, dtype=tf.float32)  # Cast delomega to float32
 
     # Perform matrix multiplication
-    dis = tf.matmul(KL, rhoi, transpose_b=True)  # Shape will be [Nt, batch_size]
+    rhoi = tf.expand_dims(rhoi, axis=0) if len(rhoi.shape) == 1 else rhoi  # Ensure rhoi is 2D for multiplication
+    dis = tf.matmul(KL, rhoi, transpose_b = True)  # Shape will be [Nt, batch_size]
     dis = tf.transpose(dis) #transpose to [batch_size, Nt]
     dis = dis * delomega  # Multiply by delomega
     return dis
@@ -297,7 +298,7 @@ class LossCalculator:
             y_pred: tf.Tensor = None,
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
-        y_pred = Di(self.kernel, rho/(2*np.pi), self.delomega)
+        y_pred = Di(self.kernel, rho, self.delomega)
         main_loss = self.custom_loss(y_pred, err, y_true)
         smooth_loss = self.smoothness_loss(rho)
         l2_loss = self.l2_regularization()
@@ -355,16 +356,16 @@ class networkTrainer:
         step = 0
 
         for step, (X, y, z) in enumerate(dat):
-            tau = np.arange(16)
+            tau = np.arange(64)
             plt.clf()
             plt.figure(figsize=(12,4))
             plt.subplot(1,2,1) 
             plt.plot(X[0])
             plt.plot(self.model(y)[0])
-            plt.ylim(-0.1,3.5)
             plt.subplot(1,2,2)
             plt.scatter(tau, y[:][0], marker = 'x')
-            plt.scatter(tau, Di(self.loss_calculator.kernel, self.model(y)[0]/(2*np.pi), self.loss_calculator.del_omega), marker = 'o')
+            plt.scatter(tau, Di(self.loss_calculator.kernel, self.model(y)[0][:], self.loss_calculator.delomega), marker = 'o')
+            plt.yscale('log')
             plt.savefig("debug.png")
             total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z, rho_true = X)
             train_losses.append(total_loss_value.numpy())

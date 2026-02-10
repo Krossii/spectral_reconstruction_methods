@@ -299,7 +299,7 @@ class mem:
                 jac=jac,
                 method='lm',
                 options={
-                    'maxiter': 5000,
+                    'maxiter': 7500,
                     'xtol': 1e-8,
                     'ftol': 1e-8
                 }

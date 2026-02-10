@@ -1,18 +1,18 @@
 {
     "Method": "MEM",
-    "alpha_min": -2,
-    "alpha_max": 0,
+    "alpha_min": 0,
+    "alpha_max": 2,
     "alpha_points": 100,
     "default_model": "constant",
     "default_model_file": "/mnt/c/Users/chris/OneDrive/Desktop/mock-data-main/finite_T/uncorrelated_data/BW/exact_spectral_function_BW.dat",
     "omega_min": 0,
     "omega_max": 40,
     "omega_points": 500,
-    "Nt": 64,
+    "Nt": 48,
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt64_noise4.dat",
+    "correlatorFile": "../../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt48_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -21,7 +21,5 @@
     "saveParams": true,
     "verbose": true,
     "outputFile": "",
-    "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "outputDir": "./outputs/"
 }

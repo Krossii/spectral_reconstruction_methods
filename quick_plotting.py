@@ -16,7 +16,7 @@ B_field = 4
 Nt = 48
 
 mock_data = True
-noise = [3] # [2,3,4] currently this only allows a list of noise levels --- handle this dynamically later
+noise = [2,3,4] # [2,3,4] 
 
 N_samples = 10 # number of jackknife samples used in the reconstructions
 
@@ -169,7 +169,7 @@ def load_MEM():
                 G_output[i][:] = Di(K, predicted_spf[i][:], w[1]-w[0])
                 for j in range(N_samples-1):
                     G_output_bins[i][j][:] = Di(K, predicted_spf_bins[i][j][:], w[1] - w[0])
-        G_output_err = np.sqrt((N_samples-1) / N_samples * np.sum((G_output_bins - G_output) ** 2, axis=1))
+            G_output_err[i][:] = np.sqrt((N_samples-1) / N_samples * np.sum((G_output_bins[i] - G_output[i]) ** 2, axis=0))
     else:
         G_output = Di(K, predicted_spf, w[1]-w[0])
         G_output_err = Di(K, spf_var, w[1]-w[0])
@@ -413,7 +413,8 @@ def plotting_MEM(w, rho_input, rho_learned, rho_err, G_exact, G_err, G_learned, 
     plt.title("Spectral Function")
 
     plt.subplot(1, 2, 2)
-    plt.errorbar(tau,  np.squeeze(G_exact), yerr=np.squeeze(G_err), label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
+    for i in range(len(noise)):
+        plt.errorbar(tau,  np.squeeze(G_exact[i][:]), yerr=np.squeeze(G_err[i][:]), label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
     if mock_data:
         for i in range(len(noise)):
             plt.errorbar(tau, G_learned[i][:], yerr=G_learned_err[i][:], label=f"Noise{noise[i]}", fmt = 'x', color=colors[i], capsize = 3, markeredgewidth = 1, elinewidth=1)
