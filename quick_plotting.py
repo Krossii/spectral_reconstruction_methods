@@ -561,10 +561,10 @@ else:
 if mock_data:
     if method == "mem":
         if len(noise) > 1:
-            plt.savefig(f"{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
+            plt.savefig(f"plots/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
         else:
-            plt.savefig(f"{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+            plt.savefig(f"plots/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
     else:
-        plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+        plt.savefig(f"plots/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
 else:
-    plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")
+    plt.savefig(f"plots/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")
