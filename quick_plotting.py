@@ -5,18 +5,18 @@ losshistory = False
 
 home_path = "/mnt/c/Users/chris/OneDrive/Desktop"
 method = "mem"
-defmod = "constant"
+defmod = "quadratic"
 
 function = "BW"  # 2PGAUSS
-temp = "finite_T" # finite_T
-extr_Q = "RhoOverOmega" # Rho
+temp = "zero_T" # finite_T
+extr_Q = "Rho" # Rho
 
 B_field = 4
 
-Nt = 48
+Nt = 36
 
 mock_data = True
-noise = [2,3,4] # [2,3,4] 
+noise = [2] # [2,3,4] 
 
 N_samples = 10 # number of jackknife samples used in the reconstructions
 
@@ -136,7 +136,7 @@ def load_MEM():
         predicted_spf_bins = np.zeros((len(noise), N_samples-1, len(w)))
         spf_var = np.zeros((len(noise), len(w)))
         for i in range(len(noise)):
-            spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
+            spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_prior_{defmod}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
             if temp == "finite_T":
                 predicted_spf[i][:] = spf_data[:,1]/Nt
                 spf_var[i][:] = spf_data[:,2]/Nt
@@ -198,6 +198,9 @@ def load_MEM():
                 default_model[w == 0] = m_0 * 1e-10
             else:
                 default_model[w == 0] = m_0
+        if defmod == "file":
+            data = np.loadtxt("/mnt/c/Users/chris/OneDrive/Desktop/unsupervised_results/UnsupAI_mock_corr_BW_Nt36_noise3.dat.txt")
+            default_model = w*data[:, 1] # because recsults from unsupervised are rho/w
     else:
         default_model = read_file_l1(f"{home_path}/finite_T_finite_B/unsupervised_ml/rhoOomegaB{B_field}_z_omegamax20_pts1k.txt")
     return predicted_spf, spf_var, G_output, G_output_err, default_model
@@ -556,6 +559,12 @@ else:
     plotting_MEM(w, true_spf, predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err, default_model)
 
 if mock_data:
-    plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+    if method == "mem":
+        if len(noise) > 1:
+            plt.savefig(f"{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
+        else:
+            plt.savefig(f"{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+    else:
+        plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
 else:
     plt.savefig(f"{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")

@@ -609,7 +609,7 @@ class supervisedFit:
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
         modelname = '{}_Nt{}_{}.keras'.format(self.networkStructure, Nt, train_file[-10:-4])
-        model.save(modelname)
+        model.save(modelname) # save the model
         training_total_loss_history = np.expand_dims(training_total_loss_history, axis=-1)
         train_loss = np.concatenate((np.squeeze(training_loss_history), training_total_loss_history), axis = 1)
         validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)

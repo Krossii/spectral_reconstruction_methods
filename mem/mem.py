@@ -142,7 +142,7 @@ def get_default_model(
         return m_0 * w**2
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
-        def_model = data[:, 1]
+        def_model = w*data[:, 1] # because recsults from unsupervised are rho/w
         return def_model
     raise ValueError("Invalid choice of default model")
 
@@ -350,67 +350,6 @@ class mem:
         if res_norm > 1e-3:
             print(f"    ⚠ Large gradient! Solution may be poor.")
         
-        return rho
-
-    def minimizer(
-        self,
-        corr: np.ndarray, 
-        VXi: np.ndarray, 
-        M: np.ndarray, 
-        U: np.ndarray, 
-        al: float, 
-        u_guess: np.ndarray, 
-        kernel: np.ndarray
-        ) -> np.ndarray:
-        N_s = M.shape[0]
-            
-        def func(b):
-            rho = self.def_model *np.exp(U @ b)
-            G_rho = Di(kernel, rho, self.delomega) 
-            g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
-            f = -al * b - g
-            """plt.figure(1)
-            plt.subplot(1,2,1)
-            plt.plot(self.w, rho)
-            plt.plot(self.w, def_model)
-            plt.ylim(-0.5,5)
-            plt.subplot(1,2,2)
-            plt.plot(self.tau, G_rho)
-            plt.plot(self.tau, corr)
-            plt.yscale("log")
-            plt.ylim(10**-5, 10**1)
-            plt.savefig("diagnosis.png")"""
-            return f
-        
-        def jac(b):
-            rho = self.def_model *np.exp(U @ b)
-            diag_rho_U = np.diag(rho) @ U 
-            A = (kernel @ diag_rho_U) * self.delomega
-            J_nonlinear = VXi.T @ self.cov_mat_inv @ A
-            J = -al * np.eye(N_s) - J_nonlinear
-            return J
-
-        # --- diagnostics ---
-        rho_guess = self.def_model * np.exp(U @ u_guess)
-        G_rho_guess = Di(kernel, rho_guess, self.delomega) 
-        diff_guess = G_rho_guess - corr
-        g_guess = VXi.T @ self.cov_mat_inv @ diff_guess
-        print(f"alpha: {al:.3e}")
-        print(f"||G-r|| = {np.linalg.norm(diff_guess):.3e}, ||VXi^T cov_inv (G-r)|| = {np.linalg.norm(g_guess):.3e}")
-        # --- end diagnostics ---
-        print("Residual norm before solve", np.linalg.norm(func(u_guess)))
-        sol = root(func, u_guess, jac=jac, method='lm')
-        res_norm = np.linalg.norm(func(sol.x))
-        print("Solver message:", sol.message)
-        print("Number of function evaluations:", getattr(sol, "nfev", None))
-        print("Residual norm after solve:", res_norm)
-
-        u = sol.x
-        rho = self.def_model * np.exp(U @ u)
-        G_pred = Di(kernel, rho, self.delomega)
-        S = np.sum(rho - self.def_model - rho * np.nan_to_num(np.log(rho/self.def_model), neginf = -1e300)) * self.delomega
-        L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
-        print("S, L, Q:", S, L, al*S-L)
         return rho
 
     def step2(
@@ -739,24 +678,19 @@ class mem:
         if verbose:
             print("*"*40)
             print("Starting minimization using svd")
+
         rho_min = self.step1(correlator, kernel)
-        # Use only optimal alpha for step2
-        #rho_min_for_step2 = np.array([rho_min[idx_opt]])
-        #alpha_backup = self.alpha
-        #self.alpha = np.array([self.alpha[idx_opt]])
+
         if verbose:
             print("*"*40)
             print("Starting calculation of probability distribution")
-        #rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min_for_step2, correlator, kernel)
-        
-        # Restore alpha array
-        #self.alpha = alpha_backup
 
         rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min, correlator, kernel)
         if np.any(np.isnan(rho_min)):
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")
             error = np.zeros(len(omega))
+            
         if isinstance(Prob_dist_normed, int):
             print("*"*40)
             print("Probability distribution empty. Aborting error evaluation.")
@@ -897,7 +831,7 @@ class FitRunner:
         self.extractedQuantity = self.parameterHandler.get_extractedQuantity()
         self.Nt = self.parameterHandler.get_params()["Nt"] or len(self.x)
         self.outputDir = os.path.abspath(self.parameterHandler.get_params()["outputDir"])
-        self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{temp}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
+        self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{temp}_prior_{self.parameterHandler.get_params()['default_model']}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
         cov = np.diag(self.error ** 2)
         cov_inv = np.linalg.inv(cov)
         self.fitter = mem(
