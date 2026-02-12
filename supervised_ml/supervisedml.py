@@ -304,7 +304,7 @@ class LossCalculator:
         l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
         #total_loss_value = rho_loss
-        total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss + rho_loss
+        total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss #+ rho_loss
         return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss, rho_loss] ### maybe fix the passing here at some point
 
 class networkTrainer:
@@ -356,7 +356,7 @@ class networkTrainer:
         step = 0
 
         for step, (X, y, z) in enumerate(dat):
-            tau = np.arange(64)
+            tau = np.arange(36) # hardcoded ... 
             plt.clf()
             plt.figure(figsize=(12,4))
             plt.subplot(1,2,1) 

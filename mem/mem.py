@@ -10,9 +10,6 @@ from dataclasses import dataclass, field
 import matplotlib.pyplot as plt
 
 
-# changed the signs in Q from -L to +L and changed the signs in S to -S
-
-
 #from latqcdtools.base.check import ignoreDivideByZero, ignoreInvalidValue, ignoreUnderflow, ignoreOverflow
 #from latqcdtools.base.speedify import parallel_function_eval
 #ignoreDivideByZero()

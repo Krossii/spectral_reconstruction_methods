@@ -1,6 +1,7 @@
 import pickle
 import matplotlib.pyplot as plt
 
+from scipy import integrate
 import numpy as np
 import json
 import argparse
@@ -310,9 +311,9 @@ class create_datset:
             self
             ):
         one_dat = []
-        A = np.linspace(0.01, 0.1, 20)
-        M = np.linspace(0.05, 0.11, 20)
-        G = np.linspace(0.03, 0.11, 20)
+        A = np.linspace(0.01, 0.1, 2)
+        M = np.linspace(0.05, 0.11, 2)
+        G = np.linspace(0.03, 0.11, 2)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -320,7 +321,7 @@ class create_datset:
             for j in range(len(M)):
                 for k in range(len(G)):
                     rho = self.breit_wigner(self.w, A[i], M[j], G[k])
-                    #normalizing_fac = np.trapezoid(rho, self.w)
+                    #normalizing_fac = integrate.trapezoid(rho, self.w)
                     #normed_rho = rho/normalizing_fac
                     #if np.max(normed_rho) >= 5:
                     #    print(A[i], M[j], G[k])
@@ -351,7 +352,7 @@ class create_datset:
             for j in range(N_params**2):
                 for k in range(N_params**2):
                     rho = self.mbreit_wigner(self.w, A[i][:], M[j][:], G[k][:])
-                    normalizing_fac = np.trapz(rho, self.w)
+                    normalizing_fac = integrate.trapezoid(rho, self.w)
                     normed_rho = rho/normalizing_fac                    
                     if np.max(normed_rho) >= 5:
                         print(A[i][:], M[j][:], G[k][:])
@@ -378,7 +379,7 @@ class create_datset:
         for i in range(len(mu)):
             for j in range(len(sigma)):                
                 rho = self.non_zero(self.w, mu[i], sigma[j])
-                normalizing_fac = np.trapezoid(rho, self.w)
+                normalizing_fac = integrate.trapezoid(rho, self.w)
                 normed_rho = rho/normalizing_fac
                 corr = self.get_corr(self.w, self.tau, normed_rho)
                 noise = self.noise(corr)
@@ -403,7 +404,7 @@ class create_datset:
         for i in range(len(t)):
             for j in range(len(h)):
                 rho = self.step(self.w, t[i], h[j])
-                normalizing_fac = np.trapezoid(rho, self.w)
+                normalizing_fac = integrate.trapezoid(rho, self.w)
                 normed_rho = rho/normalizing_fac
                 corr = self.get_corr(self.w, self.tau, normed_rho)
                 noise = self.noise(corr)
@@ -428,7 +429,7 @@ class create_datset:
         for i in range(len(mu)):
             for j in range(len(sigma)):
                 rho = self.peak(self.w, mu[i], sigma[j])
-                normalizing_fac = np.trapezoid(rho, self.w)
+                normalizing_fac = integrate.trapezoid(rho, self.w)
                 normed_rho = rho/normalizing_fac
                 corr = self.get_corr(self.w, self.tau, normed_rho)
                 noise = self.noise(corr)
@@ -514,7 +515,7 @@ class create_Kades_datset:
             for j in range(len(M)):
                 for k in range(len(G)):
                     rho = self.breit_wigner(self.w, A[i], M[j], G[k])
-                    #normalizing_fac = np.trapezoid(rho, self.w)
+                    #normalizing_fac = integrate.trapezoid(rho, self.w)
                     normed_rho = rho#/normalizing_fac
                     corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
@@ -542,7 +543,7 @@ class create_Kades_datset:
             for j in range(7**2):
                 for k in range(7**2):
                     rho = self.mbreit_wigner(self.w, A[i][:], M[j][:], G[k][:])
-                    normalizing_fac = np.trapezoid(rho, self.w)
+                    normalizing_fac = integrate.trapezoid(rho, self.w)
                     normed_rho = rho/normalizing_fac
                     corr = self.get_corr(self.w, self.tau, normed_rho)
                     noise = self.noise(corr)
