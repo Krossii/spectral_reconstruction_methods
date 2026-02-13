@@ -214,7 +214,6 @@ The following issues are known and still need to be fixed/read through.
 - I experienced some issues with my compiler crashing while running supervised learning for about 3000-5000 epochs. It might be useful to check this on a different machine to see if this issue persists.
 - I added a small wrapper for the raytune library - this is not finished though
 - gpr fails due due to a matrix which is not positive definite (idk how to fix this)
-- mem needs some work
 
 
 ## Needed Libraries
@@ -224,7 +223,6 @@ The following non-standard libraries are needed to run the program:
 - `scipy` (general applications)
 - `tensorflow` (for machine learning)
 - `fredipy` (for the Gaussian method)
-- `latqcdtools` (for parallelization in MEM)
 
 ### Hints on the installation of TensorFlow
 

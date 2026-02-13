@@ -285,7 +285,7 @@ class mem:
             jac=jac,
             method='hybr',
             options={
-                'maxfev': 5000,
+                'maxfev': 7500,
                 'xtol': 1e-8,
                 'factor': 0.1
             }
@@ -299,7 +299,7 @@ class mem:
                 jac=jac,
                 method='lm',
                 options={
-                    'maxiter': 7500,
+                    'maxiter': 10000,
                     'xtol': 1e-8,
                     'ftol': 1e-8
                 }
@@ -690,7 +690,7 @@ class mem:
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")
             error = np.zeros(len(omega))
-            
+
         if isinstance(Prob_dist_normed, int):
             print("*"*40)
             print("Probability distribution empty. Aborting error evaluation.")
