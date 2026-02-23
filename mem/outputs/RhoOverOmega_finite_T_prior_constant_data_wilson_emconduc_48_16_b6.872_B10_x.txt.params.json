@@ -12,7 +12,7 @@
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B12_x.txt",
+    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B10_x.txt",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -21,7 +21,5 @@
     "saveParams": true,
     "verbose": true,
     "outputFile": "",
-    "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "outputDir": "./outputs/"
 }

@@ -1,6 +1,6 @@
 {
     "Method": "MEM",
-    "alpha_min": 1,
+    "alpha_min": 2,
     "alpha_max": 4,
     "alpha_points": 100,
     "default_model": "constant",
@@ -12,7 +12,7 @@
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B12_x.txt",
+    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B4_z.txt",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -21,7 +21,5 @@
     "saveParams": true,
     "verbose": true,
     "outputFile": "",
-    "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "outputDir": "./outputs/"
 }

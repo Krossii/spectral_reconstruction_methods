@@ -119,7 +119,7 @@ def get_default_model(
             #else:
             return np.ones(len(w)) * m_0
         else:
-            return np.ones(len(w)) * 1e-3
+            return np.ones(len(w)) * 1e-2
     if defmod == "quadratic":
         if file != "":
             data = np.loadtxt(file)
@@ -220,7 +220,7 @@ class mem:
                 print(f"  ⚠ Warning: NaN in log(rho/m), using zeros for u_g")
                 u_g = np.zeros(M.shape[0])
             else:
-                u_g = np.linalg.lstsq(U, log_ratio, rcond=None)[0]
+                u_g = np.linalg.solve(U.T @ U, U.T @ log_ratio)
             G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
         plt.figure(1, figsize=(12,4))
@@ -258,20 +258,31 @@ class mem:
         """Minimize Q = alpha*S + L using root finding"""        
         N_s = M.shape[0]
         
+        _cache = {'b': None, 'rho': None}
+        VXi_T_cov_inv = VXi.T @ self.cov_mat_inv
+        kernel_delomega = kernel * self.delomega
+
+        def _get_rho(b):
+            """Cached rho computation"""
+            if _cache['b'] is None or not np.array_equal(b, _cache['b']):
+                _cache['b'] = b.copy()
+                _cache['rho'] = self.def_model * np.exp(U @ b)
+            return _cache['rho']
+
         def residual(b):
             """Gradient of Q (should equal zero at optimum)"""
-            rho = self.def_model * np.exp(U @ b)
-            G_rho = Di(kernel, rho, self.delomega) 
-            g = VXi.T @ self.cov_mat_inv @ (G_rho - corr)
+            rho = _get_rho(b)
+            G_rho = (kernel_delomega @ rho)
+            g = VXi_T_cov_inv @ (G_rho - corr)
             f = -al * b - g
             return f
 
         def jac(b):
             """Jacobian of gradient (Hessian of Q)"""
-            rho = self.def_model * np.exp(U @ b)
-            diag_rho_U = np.diag(rho) @ U 
-            A = (kernel @ diag_rho_U) * self.delomega
-            J_nonlinear = VXi.T @ self.cov_mat_inv @ A
+            rho = _get_rho(b)
+            rho_U = rho[:, np.newaxis] * U
+            A = kernel_delomega @ rho_U
+            J_nonlinear = VXi_T_cov_inv @ A
             J = -al * np.eye(N_s) - J_nonlinear
             return J
 
@@ -282,7 +293,7 @@ class mem:
             jac=jac,
             method='hybr',
             options={
-                'maxfev': 7500,
+                'maxfev': 10000,
                 'xtol': 1e-8,
                 'factor': 0.1
             }
@@ -296,7 +307,7 @@ class mem:
                 jac=jac,
                 method='lm',
                 options={
-                    'maxiter': 10000,
+                    'maxiter': 15000,
                     'xtol': 1e-8,
                     'ftol': 1e-8
                 }
@@ -659,6 +670,37 @@ class mem:
         plt.savefig('alpha_selection_diagnostics.png', dpi=150)
         print("Plots → alpha_selection_diagnostics.png")
 
+    def validate_solution(self, rho, corr, kernel):
+        """Check if solution is physically reasonable"""
+        issues = []
+        
+        # 1. Positivity
+        if np.any(rho < -1e-10):
+            issues.append(f"Negative spectral function: min={rho.min():.3e}")
+        
+        # 2. Fit quality
+        G_pred = Di(kernel, rho, self.delomega)
+        chi2_per_dof = (
+            2 * np.sum((corr - G_pred)**2 / np.diag(np.linalg.inv(self.cov_mat_inv)))
+            / len(corr)
+        )
+        if chi2_per_dof > 5.0:
+            issues.append(f"Poor fit: χ²/dof={chi2_per_dof:.2f}")
+        
+        # 3. Entropy check
+        S = np.sum(rho - self.def_model - rho * np.log(rho/self.def_model)) * self.delomega
+        if S > 0:
+            issues.append(f"Positive entropy: S={S:.3e} (should be negative)")
+        
+        if issues:
+            print("\n⚠ SOLUTION QUALITY ISSUES:")
+            for issue in issues:
+                print(f"  - {issue}")
+        else:
+            print("\n✓ Solution passes quality checks")
+        
+        return len(issues) == 0
+
     def fitCorrelator(
         self, 
         x: np.ndarray, 
@@ -683,6 +725,8 @@ class mem:
             print("Starting calculation of probability distribution")
 
         rho_out, Prob_dist, Prob_dist_normed, alpha_reg, Hess_L = self.step2(rho_min, correlator, kernel)
+        self.validate_solution(rho_out, correlator, kernel)
+
         if np.any(np.isnan(rho_min)):
             print("*"*40)
             print("Nan value in rho_out detected. Aborting error evaluation.")

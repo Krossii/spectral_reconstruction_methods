@@ -2,21 +2,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 losshistory = False
+comparison = True
 
 home_path = "/mnt/c/Users/chris/OneDrive/Desktop"
-method = "mem"
+method = "unsupervised"
 defmod = "quadratic"
 
 function = "BW"  # 2PGAUSS
 temp = "zero_T" # finite_T
 extr_Q = "Rho" # Rho
 
-B_field = 4
+B_field = 12
+direction = "x"
 
-Nt = 48
+Nt = 36
 
 mock_data = True
-noise = [3] # [2,3,4] 
+noise = [2] # [2,3,4] 
 
 N_samples = 10 # number of jackknife samples used in the reconstructions
 
@@ -105,10 +107,10 @@ if mock_data:
         G_input_err[i][:] = G_input_data[:,2]
 
 else:
-    w = np.linspace(0,20,1000)
+    w = np.linspace(0,30,500)
     true_spf = np.zeros(len(w))
     G_input, G_input_err = np.zeros(Nt),np.zeros(Nt)
-    G_input_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/dat/data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_z.txt")
+    G_input_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/dat/data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_{direction}.txt")
     tau = G_input_data[:,0]
     G_input = G_input_data[:,1]
     G_input_err = G_input_data[:,2]
@@ -137,6 +139,7 @@ def load_MEM():
         spf_var = np.zeros((len(noise), len(w)))
         for i in range(len(noise)):
             spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_prior_{defmod}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
+            print("Loaded from:",  f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_prior_{defmod}_mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
             if temp == "finite_T":
                 predicted_spf[i][:] = spf_data[:,1]/Nt
                 spf_var[i][:] = spf_data[:,2]/Nt
@@ -149,7 +152,8 @@ def load_MEM():
                     predicted_spf_bins[i][j][:] = spf_data[:,j+3]
 
     else:
-        spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_z.txt")
+        spf_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_prior_{defmod}_data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_{direction}.txt")
+        print("Loaded from:",  f"{home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{temp}_prior_{defmod}_data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_{direction}.txt")
         predicted_spf = spf_data[:,1]
         spf_var = np.sqrt(spf_data[:,2])
         
@@ -199,10 +203,22 @@ def load_MEM():
             else:
                 default_model[w == 0] = m_0
         if defmod == "file":
-            data = np.loadtxt("/mnt/c/Users/chris/OneDrive/Desktop/unsupervised_results/UnsupAI_mock_corr_BW_Nt36_noise3.dat.txt")
+            data = np.loadtxt("/mnt/c/Users/chris/OneDrive/Desktop/unsupervised_results/UnsupAI_mock_corr_BW_Nt36_noise4_750.dat.txt")
             default_model = w*data[:, 1] # because recsults from unsupervised are rho/w
     else:
-        default_model = read_file_l1(f"{home_path}/finite_T_finite_B/unsupervised_ml/rhoOomegaB{B_field}_z_omegamax20_pts1k.txt")
+        default_model = np.ones(len(w))
+        if defmod == "constant":
+            default_model = np.ones(len(w)) * 1e-2
+        if defmod == "quadratic":
+            # Normalize to match integral
+            m_0 = np.trapz(exact, x=omega_file) / np.trapz(omega_file**2, x=omega_file)
+            default_model = m_0 * w**2
+            if extr_Q != "RhoOverOmega":
+                # Protect against zero at ω=0
+                default_model[w == 0] = m_0 * 1e-10
+            else:
+                default_model[w == 0] = m_0
+        #default_model = read_file_l1(f"{home_path}/finite_T_finite_B/unsupervised_ml/rhoOomegaB{B_field}_z_omegamax20_pts1k.txt")
     return predicted_spf, spf_var, G_output, G_output_err, default_model
 
 def load_BG():
@@ -210,21 +226,15 @@ def load_BG():
 
     K=KL_kernel_Position_Vacuum(tau, w)
 
-    # --- some parameter stuff ---
-
-    #if extr_Q == "Rho":
-    #    rec = "exp_sym"
-    #if extr_Q == "RhoOverOmega":
-    #    rec = "exp_sym_w"
     rec = "exp_sym_w"
-    lamb = 0.001
+    lamb = 0.9
 
     # --- load the predicted spectral function --- 
     
     predicted_spf = np.zeros((len(noise), len(true_spf)))
     spf_var = np.zeros((len(noise), len(true_spf)))
     for i in range(len(noise)):
-        spf_data = np.loadtxt(f"{home_path}/zero_T_uncorrelated/{function}/BG/nt{Nt}/noise{noise[i]}/{rec}/rho_ll{lamb}.txt")
+        spf_data = np.loadtxt(f"{home_path}/proceedings/egarnacho/plots_zero_T/{function}/BG/nt{Nt}/noise{noise[i]}/{rec}/rho_ll{lamb}.txt")
         predicted_spf[i][:] = spf_data[:,1]
         spf_var[i][:] = spf_data[:,2]
 
@@ -233,8 +243,8 @@ def load_BG():
     G_output = np.zeros((len(noise), Nt))
     G_output_err = np.zeros((len(noise), Nt))
     for i in range(len(noise)):
-        G_output[i][:] = Di(K, predicted_spf[i][:]/(2*np.pi), w[1]-w[0]) 
-        G_output_err[i][:] = Di(K, spf_var[i][:]/(2*np.pi), w[1]-w[0]) 
+        G_output[i][:] = Di(K, predicted_spf[i][:], w[1]-w[0]) 
+        G_output_err[i][:] = Di(K, spf_var[i][:], w[1]-w[0]) 
     
     return predicted_spf, spf_var, G_output, G_output_err
 
@@ -269,9 +279,9 @@ def load_gaussian():
     G_output_err = np.zeros((len(noise), Nt))
     G_output_bins = np.zeros((len(noise), N_samples-1, Nt))
     for i in range(len(noise)):
-        G_output[i][:] = Di(K, predicted_spf[i][:]/(2*np.pi), w[1]-w[0])
+        G_output[i][:] = Di(K, predicted_spf[i][:], w[1]-w[0])
         for j in range(N_samples-1):
-            G_output_bins[i][j][:] = Di(K, predicted_spf_bins[i][j][:]/(2*np.pi), w[1] - w[0])
+            G_output_bins[i][j][:] = Di(K, predicted_spf_bins[i][j][:], w[1] - w[0])
     G_output_err = np.sqrt((N_samples-1) / N_samples * np.sum((G_output_bins - G_output) ** 2, axis=1))
     
     return predicted_spf, spf_var, G_output, G_output_err
@@ -279,13 +289,13 @@ def load_gaussian():
 def load_unsupervised():
     # --- initialize the kernel ---
 
-    K=KL_kernel_Omega(KL_kernel_Position_FiniteT,tau, w, args = (1/Nt,))
+    K=KL_kernel_Omega(KL_kernel_Position_Vacuum, tau, w)
 
     # --- load the predicted spectral function --- 
     
     predicted_spf = np.zeros(len(w))
     spf_var = np.zeros(len(w))
-    spf_data = np.loadtxt(f"{home_path}/finite_T_finite_B/{method}/{extr_Q}_data_wilson_emconduc_B2_z_w10_500_seed42.txt")
+    spf_data = np.loadtxt(f"{home_path}/proceedings/Nt36A234andrho/dataforchristian/UnsupAI_mock_corr_{function}_Nt{Nt}_noise{noise[0]}.dat.txt")
     predicted_spf = spf_data[:,1]
     spf_var = spf_data[:,2]
 
@@ -390,12 +400,12 @@ def plotting_spf_loss(rho_input, rho_learned,train_losses, val_losses):
 
 def plotting_MEM(w, rho_input, rho_learned, rho_err, G_exact, G_err, G_learned, G_learned_err, d_model):
     colors = ['tomato', 'mediumseagreen', 'turquoise', 'deepskyblue', 'mediumslateblue', 'violet', 'plum', 'pink']
-    if temp == "finite_T":
-        w = w*Nt
+    #if temp == "finite_T":
+    #    w = w*Nt
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 2, 1)
     if mock_data:
-        plt.plot(w, np.squeeze(rho_input), label='True ρ', color='cornflowerblue')
+        #plt.plot(w, np.squeeze(rho_input), label='True ρ', color='cornflowerblue')
         for i in range(len(noise)):
             plt.plot(w, np.squeeze(rho_learned[i][:]), label=f"Noise{noise[i]}", color=colors[i])
             plt.fill_between(w, np.squeeze(rho_learned[i][:]) - np.squeeze(rho_err[i][:]), np.squeeze(rho_learned[i][:]) + np.squeeze(rho_err[i][:]), color = colors[i], alpha = 0.5)
@@ -416,8 +426,11 @@ def plotting_MEM(w, rho_input, rho_learned, rho_err, G_exact, G_err, G_learned, 
     plt.title("Spectral Function")
 
     plt.subplot(1, 2, 2)
-    for i in range(len(noise)):
-        plt.errorbar(tau,  np.squeeze(G_exact[i][:]), yerr=np.squeeze(G_err[i][:]), label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
+    if mock_data:
+        for i in range(len(noise)):
+            plt.errorbar(tau,  np.squeeze(G_exact[i][:]), yerr=np.squeeze(G_err[i][:]), label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
+    else:
+        plt.errorbar(tau, G_exact, yerr=G_err, label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
     if mock_data:
         for i in range(len(noise)):
             plt.errorbar(tau, G_learned[i][:], yerr=G_learned_err[i][:], label=f"Noise{noise[i]}", fmt = 'x', color=colors[i], capsize = 3, markeredgewidth = 1, elinewidth=1)
@@ -480,25 +493,23 @@ def plotting_ml(rho_learned, rho_err, G_exact, G_err, G_learned, G_learned_err):
 
 def comparing_mock(
         rho_input, 
-        rho_gauss, 
+        rho_unsup, 
         rho_bg, 
         rho_mem, 
-        rho_err_g, 
+        rho_err_unsup, 
         rho_err_bg, 
         rho_err_mem, 
         G_exact,
         G_err,
-        G_l_gauss,
+        G_l_unsup,
         G_l_bg,
         G_l_mem,
-        G_err_gauss,
+        G_err_unsup,
         G_err_bg,
         G_err_mem,
         ):
 
     rho_input = divbyOmega(rho_input, w)
-    rho_gauss = divbyOmega(rho_gauss, w)
-    rho_err_g = divbyOmega(rho_err_g, w)
     rho_bg = divbyOmega(rho_bg, w)
     rho_err_bg = divbyOmega(rho_err_bg, w)
     rho_mem = divbyOmega(rho_mem, w)
@@ -506,8 +517,8 @@ def comparing_mock(
 
     omega=w[1:]
     rho_input = rho_input[1:]
-    rho_gauss = rho_gauss[1:]
-    rho_err_g = rho_err_g[1:]
+    rho_unsup = rho_unsup[1:]
+    rho_err_unsup = rho_err_unsup[1:]
     rho_bg = rho_bg[1:]
     rho_err_bg = rho_err_bg[1:]
     rho_mem = rho_mem[1:]
@@ -519,18 +530,18 @@ def comparing_mock(
     #plt.plot(w, rho_gauss, label="Gaussian", color="tomato")
     #plt.plot(w, rho_bg, label="BG", color="mediumseagreen")
     #plt.plot(w, rho_mem, label="MEM", color="violet")
-    plt.fill_between(omega, rho_gauss - rho_err_g, rho_gauss + rho_err_g, color = "tomato", alpha = 0.5, label="Gaussian")
+    plt.fill_between(omega, rho_unsup - rho_err_unsup, rho_unsup + rho_err_unsup, color = "tomato", alpha = 0.5, label="Unsupervised")
     plt.fill_between(omega, rho_bg - rho_err_bg, rho_bg + rho_err_bg, color = "mediumseagreen", alpha = 0.5, label = "BG")
     plt.fill_between(omega, rho_mem - rho_err_mem, rho_mem + rho_err_mem, color = "violet", alpha = 0.5, label = "MEM")
     plt.legend()
-    plt.ylim(0,1.7)
+    plt.ylim(0,20)
     plt.ylabel(r"$\rho (\omega) / \omega$")
     plt.xlabel(r"$\omega$")
     plt.title("Spectral Function")
 
     plt.subplot(1, 2, 2)
     plt.errorbar(tau,  G_exact, yerr=G_err, label='True G', color='k', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
-    plt.errorbar(tau, G_l_gauss, yerr=G_err_gauss, label="Gaussian", fmt = 'x', color="tomato", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
+    plt.errorbar(tau, G_l_unsup, yerr=G_err_unsup, label="Unsupervised", fmt = 'x', color="tomato", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
     plt.errorbar(tau, G_l_bg, yerr=G_err_bg, label="BG", fmt = 'x', color="mediumseagreen", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
     plt.errorbar(tau, G_l_mem, yerr=G_err_mem, label="MEM", fmt = 'x', color="violet", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
     plt.yscale("log")
@@ -541,22 +552,19 @@ def comparing_mock(
 
     plt.tight_layout()
 
-predicted_spf, spf_var, G_output, G_output_err, default_model = load_MEM()
-#predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
+predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = load_MEM()
+predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
 #predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = load_gaussian()
-#predicted_spf, spf_var, G_output, G_output_err = load_supervised()
+predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = load_unsupervised()
 
 if losshistory:
     plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
 else:
-    """if mock_data:
-        comparing_mock(
-            true_spf, predicted_spf_gauss[0][:], predicted_spf_bg[0][:], predicted_spf_mem[0][:], spf_var_gauss[0][:], spf_var_bg[0][:], spf_var_mem[0][:], 
-            G_input[0][:], G_input_err[0][:], G_output_gauss[0][:], G_output_bg[0][:], G_output_mem[0][:], G_output_err_gauss[0][:], G_output_err_bg[0][:], G_output_err_mem[0][:])
-    else:
-        plotting_MEM(true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)"""
+    comparing_mock(
+        true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], 
+        G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:])
     #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
-    plotting_MEM(w, true_spf, predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err, default_model)
+    #plotting_MEM(w, true_spf, predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err, default_model)
 
 if mock_data:
     if method == "mem":
@@ -565,6 +573,9 @@ if mock_data:
         else:
             plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
     else:
-        plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+        if comparison:
+            plt.savefig(f"plots/RhoOomega_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+        else:
+            plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
 else:
-    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_lat.png")
+    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}.png")
