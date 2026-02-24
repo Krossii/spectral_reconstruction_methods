@@ -13,7 +13,7 @@ The neural networks are trained to minimize the difference between the output of
 
 The program can be run from the command line using the following command:
 ```bash
-python neuralFit.py --config config.json
+python reconstruction.py --config config.json
 ```
 where `config.json` is a JSON file containing the parameters for the training (see below). All parameters specified in the table below can also be passed as command line arguments. For example, the parameter `lambda_s` can be passed as `--lambda_s 1e-5`.
 

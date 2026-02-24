@@ -242,7 +242,7 @@ class mem:
         G_final = Di(kernel, rho_opt, self.delomega)
         L_final = 0.5 * (corr - G_final) @ self.cov_mat_inv @ (corr - G_final)
         print(f"  χ²/N = {2*L_final/len(corr):.3f}\n")
-        
+
         return rho_min
     
     def minmizer_root(
@@ -851,18 +851,11 @@ class FitRunner:
             self.parameterHandler.get_params()["errorCol"],
             self.parameterHandler.get_correlator_cols()
         )
-        if temp == "finite_T":
-            self.omega = np.linspace(
-                self.parameterHandler.get_params()["omega_min"],
-                self.parameterHandler.get_params()["omega_max"]/self.parameterHandler.get_params()["Nt"],
-                self.parameterHandler.get_params()["omega_points"]
-            )
-        else:
-            self.omega = np.linspace(
-                self.parameterHandler.get_params()["omega_min"],
-                self.parameterHandler.get_params()["omega_max"],
-                self.parameterHandler.get_params()["omega_points"]
-            )
+        self.omega = np.linspace(
+            self.parameterHandler.get_params()["omega_min"],
+            self.parameterHandler.get_params()["omega_max"],
+            self.parameterHandler.get_params()["omega_points"]
+        )
         self.default_model = get_default_model(self.omega, 
                                                self.parameterHandler.get_params()["default_model"], 
                                                self.parameterHandler.get_params()["default_model_file"],

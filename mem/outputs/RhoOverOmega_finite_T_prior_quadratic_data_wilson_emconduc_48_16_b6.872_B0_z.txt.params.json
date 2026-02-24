@@ -1,12 +1,12 @@
 {
     "Method": "MEM",
-    "alpha_min": 0,
-    "alpha_max": 3,
+    "alpha_min": 3,
+    "alpha_max": 6,
     "alpha_points": 100,
-    "default_model": "constant",
+    "default_model": "quadratic",
     "default_model_file": "",
     "omega_min": 0,
-    "omega_max": 30,
+    "omega_max": 1.875,
     "omega_points": 500,
     "Nt": 16,
     "extractedQuantity": "RhoOverOmega",
@@ -21,7 +21,5 @@
     "saveParams": true,
     "verbose": true,
     "outputFile": "",
-    "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "outputDir": "./outputs/"
 }

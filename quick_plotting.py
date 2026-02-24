@@ -2,22 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 losshistory = False
-comparison = True
+comparison = False
 
 home_path = "/mnt/c/Users/chris/OneDrive/Desktop"
-method = "unsupervised"
-defmod = "quadratic"
+method = "mem"
+defmod = "constant"
 
 function = "BW"  # 2PGAUSS
-temp = "zero_T" # finite_T
-extr_Q = "Rho" # Rho
+temp = "finite_T" # finite_T
+extr_Q = "RhoOverOmega" # Rho
 
 B_field = 12
-direction = "x"
+direction = "z"
 
-Nt = 36
+Nt = 16
 
-mock_data = True
+mock_data = False
 noise = [2] # [2,3,4] 
 
 N_samples = 10 # number of jackknife samples used in the reconstructions
@@ -210,14 +210,8 @@ def load_MEM():
         if defmod == "constant":
             default_model = np.ones(len(w)) * 1e-2
         if defmod == "quadratic":
-            # Normalize to match integral
-            m_0 = np.trapz(exact, x=omega_file) / np.trapz(omega_file**2, x=omega_file)
-            default_model = m_0 * w**2
-            if extr_Q != "RhoOverOmega":
-                # Protect against zero at ω=0
-                default_model[w == 0] = m_0 * 1e-10
-            else:
-                default_model[w == 0] = m_0
+            default_model = w**2
+            default_model = np.maximum(default_model, 1e-10)
         #default_model = read_file_l1(f"{home_path}/finite_T_finite_B/unsupervised_ml/rhoOomegaB{B_field}_z_omegamax20_pts1k.txt")
     return predicted_spf, spf_var, G_output, G_output_err, default_model
 
@@ -552,19 +546,47 @@ def comparing_mock(
 
     plt.tight_layout()
 
+def mem_zoomed(w, rho_learned, rho_err, G_exact, G_err, G_learned, G_learned_err, d_model):
+    w_zoom = w[w <= 1.879]
+    rho_learned_zoom = rho_learned[:len(w_zoom)]
+    rho_err_zoom = rho_err[:len(w_zoom)]
+    d_model_zoom = d_model[:len(w_zoom)]
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(w_zoom, rho_learned_zoom, label='Learned ρ', color='tomato')
+    plt.fill_between(w_zoom, rho_learned_zoom - rho_err_zoom, rho_learned_zoom + rho_err_zoom, color = "tomato", alpha = 0.5)
+    plt.plot(w_zoom, d_model_zoom, label = 'Prior', color = 'black', linestyle = 'dashed', alpha = 0.6)
+    plt.legend()
+    plt.ylabel(r"$\rho (\omega)/ \omega$")
+    plt.xlabel(r"$\omega$")
+    plt.title("Zoomed Spectral Function")
+    plt.subplot(1, 2, 2)
+    plt.errorbar(tau,  G_exact, yerr=G_err, label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
+    plt.errorbar(tau, G_learned, yerr=G_learned_err, label=f"Learned G", fmt = 'x', color="tomato", capsize = 3, markeredgewidth = 1, elinewidth=1)
+    plt.yscale("log")
+    plt.ylabel(r"$G(\tau)$")
+    plt.xlabel(r"$\tau$")
+    plt.legend()
+    plt.title("Correlator")
+    plt.tight_layout()
+
+
 predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = load_MEM()
-predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
+#predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
 #predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = load_gaussian()
-predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = load_unsupervised()
+#predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = load_unsupervised()
 
 if losshistory:
     plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
 else:
-    comparing_mock(
-        true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], 
-        G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:])
-    #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
-    #plotting_MEM(w, true_spf, predicted_spf, spf_var, G_input, G_input_err, G_output, G_output_err, default_model)
+    if comparison:
+        comparing_mock(
+            true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], 
+            G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:])
+    else:
+        #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
+        #plotting_MEM(w, true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+        mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
 
 if mock_data:
     if method == "mem":
@@ -578,4 +600,4 @@ if mock_data:
         else:
             plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
 else:
-    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}.png")
+    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
