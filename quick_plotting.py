@@ -606,6 +606,25 @@ def mem_zoomed(w, rho_learned, rho_err, G_exact, G_err, G_learned, G_learned_err
     plt.title("Correlator")
     plt.tight_layout()
 
+def integrate_spatial_correlator(spectral_function, omega_max):
+    omega_range = np.linspace(0,omega_max)
+    spatial_correlator = np.trapz(spectral_function, x=omega_range)
+    return spatial_correlator
+
+def compare_spatial_correlators(spectral_function):
+    w_maxes = np.array([10,20,30])
+    spatial_correlators = []
+    for i in len(w_maxes):
+        spatial_correlators.append(spatial_correlator(spectral_function, w_maxes[i]))
+    print(spatial_correlators)
+    return np.array(spatial_correlators)
+
+def plot_spatial_correlators(spectral_function):
+    spatial_correlators = compare_spatial_correlators(spectral_function)
+    plt.figure(1)
+    for i in range(3):
+        plt.scatter(spatial_correlators[i][:], label=f'Omega_max = '{i*10})
+    plt.savefig("Spatial_correlator_comparison")
 
 predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = load_MEM()
 predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = load_BG()
