@@ -565,19 +565,20 @@ def comparing_mock(
     plt.ylabel(r"$\rho (\omega)$")
     #plt.ylabel(r"$\rho (\omega) / \omega$")
     plt.xlabel(r"$\omega$")
-    plt.title("Spectral Function for noise level A=4")
+    plt.title(f"Spectral Function for noise level A={noise[0]}")
 
+    offset = 0.007
     plt.subplot(1, 2, 2)
-    plt.errorbar(tau,  G_exact, yerr=G_err, label='True G', color='k', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
-    plt.errorbar(tau, G_l_unsup, yerr=G_err_unsup, label="Unsupervised", fmt = 'x', color="tomato", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
-    plt.errorbar(tau, G_l_bg, yerr=G_err_bg, label="BG", fmt = 'x', color="mediumseagreen", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
-    plt.errorbar(tau, G_l_mem, yerr=G_err_mem, label="MEM", fmt = 'x', color="violet", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
-    plt.errorbar(tau, G_l_gauss, yerr=G_err_gauss, label="Gaussian", fmt = 'x', color="cornflowerblue", capsize = 3, markeredgewidth = 1, elinewidth=1, alpha=0.7)
+    plt.errorbar(tau,  G_exact, yerr=G_err, label='True G', color='k', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'o', markersize=4)
+    plt.errorbar(tau, G_l_unsup+offset, yerr=G_err_unsup, label="Unsupervised", color="tomato", fmt = 'x', capsize = 3, markeredgewidth = 1, elinewidth=1, markersize=4, mfc='none')
+    plt.errorbar(tau, G_l_bg, yerr=G_err_bg, label="BG", color="mediumseagreen", fmt = '^', capsize = 3, markeredgewidth = 1, elinewidth=1, markersize=4, mfc='none')
+    plt.errorbar(tau, G_l_mem-offset, yerr=G_err_mem, label="MEM", color="violet", fmt = 'v', capsize = 3, markeredgewidth = 1, elinewidth=1, markersize=4, mfc='none')
+    plt.errorbar(tau, G_l_gauss+offset, yerr=G_err_gauss, label="Gaussian", color="cornflowerblue", fmt = 'd', capsize = 3, markeredgewidth = 1, elinewidth=1, markersize=4, mfc='none')
     plt.yscale("log")
     plt.ylabel(r"$G(\tau)$")
-    plt.xlabel(r"$\tau$")
+    plt.xlabel(r"$\tau$/a")
     plt.legend()
-    plt.title("Correlator for noise level A=4")
+    plt.title(f"Correlator for noise level A={noise[0]}")
 
     plt.tight_layout()
 
@@ -630,7 +631,7 @@ if mock_data:
             plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
     else:
         if comparison:
-            plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+            plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
         else:
             plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
 else:
