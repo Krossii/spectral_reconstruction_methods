@@ -349,11 +349,19 @@ class plotting:
             self,
             w: np.ndarray,
             tau: np.ndarray,
-            method: str,
+            extrQ: str,
+            temp: bool,
+            mock_data: bool,
+            **kwargs,
             ) -> None:
         self.tau = tau
         self.w = w
-        self.method = method
+        if extrQ == "RhoOverOmega": self.ylabel = r"$\rho (\omega)/ \omega$"
+        else: self.ylabel = r"$\rho (\omega)$"
+        if temp: self.wlabel = r"$\omega/T$"
+        else: self.wlabel = r"$\omega$"
+        self.mock_data = mock_data
+        self.kwargs = {k: v for k, v in kwargs.items() if k in ['function', 'noise', 'N_samples', 'B_field', 'direction']}
         
     def plotting_spf(
             self,
@@ -464,7 +472,8 @@ class plotting:
         #    w = w*Nt
         plt.figure(figsize=(12, 4))
         plt.subplot(1, 2, 1)
-        if mock_data:
+        if self.mock_data:
+            noise = self.kwargs['noise']
             #plt.plot(self.w, np.squeeze(rho_input), label='True ρ', color='cornflowerblue')
             for i in range(len(noise)):
                 plt.plot(self.w, np.squeeze(rho_learned[i][:]), label=f"Noise{noise[i]}", color=colors[i])
@@ -474,24 +483,20 @@ class plotting:
             plt.fill_between(self.w, rho_learned-rho_err, rho_learned+rho_err, color = "tomato", alpha =0.5)
         plt.plot(self.w, d_model, label = 'Prior', color = 'black', linestyle = 'dashed', alpha = 0.6)
         plt.legend()
-        if extr_Q == "RhoOverOmega":
-            plt.ylabel(r"$\rho (\omega)/ \omega$")
-        else:
-            plt.ylabel(r"$\rho (\omega)$")
-        if temp == "finite_T":
-            plt.xlabel(r"$\omega/T$")
-        else:
-            plt.xlabel(r"$\omega$")
+        plt.ylabel(self.ylabel)
+        plt.xlabel(self.wlabel)
         #plt.ylim(-0.1,50)
         plt.title("Spectral Function")
 
         plt.subplot(1, 2, 2)
-        if mock_data:
+        if self.mock_data:
+            noise = self.kwargs['noise']
             for i in range(len(noise)):
                 plt.errorbar(self.tau,  np.squeeze(G_exact[i][:]), yerr=np.squeeze(G_err[i][:]), label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
         else:
             plt.errorbar(self.tau, G_exact, yerr=G_err, label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
-        if mock_data:
+        if self.mock_data:
+            noise = self.kwargs['noise']
             for i in range(len(noise)):
                 plt.errorbar(self.tau, G_learned[i][:], yerr=G_learned_err[i][:], label=f"Noise{noise[i]}", fmt = 'x', color=colors[i], capsize = 3, markeredgewidth = 1, elinewidth=1)
         else:
@@ -518,19 +523,23 @@ class plotting:
         plt.figure(figsize=(12, 4))
         plt.subplot(1, 2, 1)
         plt.plot(self.w, rho_input, label='True ρ', color='cornflowerblue')
-        for i in range(len(noise)):
-            plt.plot(self.w, rho_learned[i][:], label=f"Noise{i+2}", color=colors[i])
-            plt.fill_between(self.w, rho_learned[i][:] - rho_err[i][:], rho_learned[i][:] + rho_err[i][:], color = colors[i], alpha = 0.5)
+        if self.mock_data:
+            noise = self.kwargs['noise']
+            for i in range(len(noise)):
+                plt.plot(self.w, rho_learned[i][:], label=f"Noise{i+2}", color=colors[i])
+                plt.fill_between(self.w, rho_learned[i][:] - rho_err[i][:], rho_learned[i][:] + rho_err[i][:], color = colors[i], alpha = 0.5)
         plt.legend()
         plt.ylim(0,1.5)
-        plt.ylabel(r"$\rho (\omega)$")
-        plt.xlabel(r"$\omega$")
+        plt.ylabel(self.ylabel)
+        plt.xlabel(self.wlabel)
         plt.title("Spectral Function")
 
         plt.subplot(1, 2, 2)
         plt.errorbar(self.tau,  G_exact, yerr=G_err, label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
-        for i in range(len(noise)):
-            plt.errorbar(self.tau, G_learned[i][:], yerr=G_learned_err[i][:], label=f"Noise{i+2}", fmt = 'x', color=colors[i], capsize = 3, markeredgewidth = 1, elinewidth=1)
+        if self.mock_data:
+            noise = self.kwargs['noise']
+            for i in range(len(noise)):
+                plt.errorbar(self.tau, G_learned[i][:], yerr=G_learned_err[i][:], label=f"Noise{i+2}", fmt = 'x', color=colors[i], capsize = 3, markeredgewidth = 1, elinewidth=1)
         plt.yscale("log")
         plt.ylabel(r"$G(\tau)$")
         plt.xlabel(r"$\tau$")
@@ -553,8 +562,8 @@ class plotting:
         plt.plot(self.w, np.squeeze(rho_learned), label="Reconstructed ρ", color="tomato")
         plt.fill_between(self.w, np.squeeze(rho_learned) - np.squeeze(rho_err), np.squeeze(rho_learned) + np.squeeze(rho_err), color = "tomato", alpha = 0.5)
         plt.legend()
-        plt.ylabel(r"$\rho (\omega)/ \omega$")
-        plt.xlabel(r"$\omega$")
+        plt.ylabel(self.ylabel)
+        plt.xlabel(self.wlabel)
         plt.title("Spectral Function")
 
         plt.subplot(1, 2, 2)
@@ -598,7 +607,7 @@ class plotting:
         rho_err_mem = divbyOmega(rho_err_mem, w)"""
 
         omega_gauss = np.linspace(0,2,1000)
-        omega=w[1:]
+        omega=self.w[1:]
         rho_input = rho_input[1:]
         rho_unsup = rho_unsup[1:]*omega
         rho_err_unsup = rho_err_unsup[1:]*omega
@@ -613,9 +622,6 @@ class plotting:
         plt.figure(figsize=(12, 4))
         plt.subplot(1, 2, 1)
         plt.plot(omega, rho_input, label = "Input ρ", color = "k")
-        #plt.plot(w, rho_gauss, label="Gaussian", color="tomato")
-        #plt.plot(w, rho_bg, label="BG", color="mediumseagreen")
-        #plt.plot(w, rho_mem, label="MEM", color="violet")
         plt.fill_between(omega, rho_unsup - rho_err_unsup, rho_unsup + rho_err_unsup, color = "tomato", alpha = 0.5, label="Unsupervised")
         plt.fill_between(omega, rho_bg - rho_err_bg, rho_bg + rho_err_bg, color = "mediumseagreen", alpha = 0.5, label = "BG")
         plt.fill_between(omega, rho_mem - rho_err_mem, rho_mem + rho_err_mem, color = "violet", alpha = 0.5, label = "MEM")
@@ -624,10 +630,12 @@ class plotting:
         plt.legend()
         #plt.ylim(0,20)
         plt.ylim(0,4)
-        plt.ylabel(r"$\rho (\omega)$")
+        plt.ylabel(self.ylabel)
         #plt.ylabel(r"$\rho (\omega) / \omega$")
-        plt.xlabel(r"$\omega$")
-        plt.title(f"Spectral Function for noise level A={noise[0]}")
+        plt.xlabel(self.wlabel)
+        if self.mock_data:
+            noise = self.kwargs['noise']
+            plt.title(f"Spectral Function for noise level A={noise[0]}")
 
         offset = 0.007
         plt.subplot(1, 2, 2)
@@ -640,7 +648,9 @@ class plotting:
         plt.ylabel(r"$G(\tau)$")
         plt.xlabel(r"$\tau$/a")
         plt.legend()
-        plt.title(f"Correlator for noise level A={noise[0]}")
+        if self.mock_data:
+            noise = self.kwargs['noise']
+            plt.title(f"Correlator for noise level A={noise[0]}")
 
         plt.tight_layout()
 
@@ -665,8 +675,8 @@ class plotting:
         plt.fill_between(w_zoom, rho_learned_zoom - rho_err_zoom, rho_learned_zoom + rho_err_zoom, color = "tomato", alpha = 0.5)
         plt.plot(w_zoom, d_model_zoom, label = 'Prior', color = 'black', linestyle = 'dashed', alpha = 0.6)
         plt.legend()
-        plt.ylabel(r"$\rho (\omega)/ \omega$")
-        plt.xlabel(r"$\omega$")
+        plt.ylabel(self.ylabel)
+        plt.xlabel(self.wlabel)
         plt.title("Zoomed Spectral Function")
         plt.subplot(1, 2, 2)
         plt.errorbar(self.tau,  G_exact, yerr=G_err, label='True G', color='cornflowerblue', capsize = 3, markeredgewidth = 1, elinewidth=1, fmt = 'x')
@@ -709,7 +719,7 @@ class plotting:
         plt.savefig("Spatial_correlator_comparison.jpg")
 
 def main():
-    losshistory = False
+    #losshistory = False
     comparison = True # to be implemented: whether to compare the methods in one plot or just one method at a time
 
     home_path = "/mnt/c/Users/chris/OneDrive/Desktop" # home path to the data, should contain the "mock-data-main" folder with the mock data and the "spectral_reconstruction_methods" folder
@@ -717,6 +727,7 @@ def main():
     defmod = "quadratic" # default model for MEM, only relevant if method == "MEM", can be "constant", "quadratic" or "file"
 
     finite_T = False # Finite T or zero T kernel
+    temp = "finite_T" if finite_T else "zero_T"
     extr_Q = "Rho" # Rho or RhoOverOmega, might differ for different reconstruction methods
 
     Nt = 36 # number of points in the temporal direction
@@ -757,35 +768,35 @@ def main():
         G_input = G_input_data[:,1]
         G_input_err = G_input_data[:,2]
 
-    loading(w, tau, Nt, finite_T, home_path, mock_data, noise = noise, function = function, N_samples = N_samples)
-    predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = loading.load_call("MEM", extr_Q, defmod)
-    predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = loading.load_call("BG", extr_Q)
-    predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = loading.load_call("Gaussian", extr_Q)
-    predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = loading.load_call("Unsupervised", extr_Q)
+    ld = loading(w, tau, Nt, finite_T, home_path, mock_data, noise = noise, function = function, N_samples = N_samples)
+    predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = ld.load_call("MEM", extr_Q, defmod)
+    predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = ld.load_call("BG", extr_Q)
+    predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = ld.load_call("Gaussian", extr_Q)
+    predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = ld.load_call("Unsupervised", extr_Q)
 
+    plot = plotting(w, tau, extr_Q, finite_T, mock_data, noise = noise, function = function, N_samples = N_samples, B_field = B_field, direction = direction)
 
-
-if losshistory:
-    plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
-else:
+    """if losshistory:
+        plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
+    else:"""
     if comparison:
-        comparing_mock(true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], predicted_spf_gauss[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], spf_var_gauss[0][:], 
-            G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_gauss[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:], G_output_err_gauss[0][:])
+        plot.comparing_mock(true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], predicted_spf_gauss[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], spf_var_gauss[0][:], 
+        G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_gauss[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:], G_output_err_gauss[0][:])
     else:
         #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
         #plotting_MEM(w, true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
-        mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+        plot.mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
 
-if mock_data:
-    if method == "mem":
-        if len(noise) > 1:
-            plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
+    if mock_data:
+        if method == "mem":
+            if len(noise) > 1:
+                plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
+            else:
+                plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
         else:
-            plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+            if comparison:
+                plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
+            else:
+                plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
     else:
-        if comparison:
-            plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
-        else:
-            plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
-else:
-    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
+        plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
