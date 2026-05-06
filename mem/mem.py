@@ -149,14 +149,14 @@ class mem:
             omega: np.ndarray, 
             alpha: np.ndarray, 
             def_model: np.ndarray,
-            cov_mat_inv: np.ndarray, 
+            cov_mat: np.ndarray, 
             Nt: int
             ):
         self.alpha = alpha
         self.def_model = def_model
         self.w = omega
         self.N_t = Nt
-        self.cov_mat_inv = cov_mat_inv
+        self.cov_mat = cov_mat
         self.delomega = self.w[1] - self.w[0]
         self.tau = np.arange(Nt)
 
@@ -196,7 +196,7 @@ class mem:
 
         VXi = Vt.T @ np.diag(xi)
 
-        M = VXi.T @ self.cov_mat_inv @ VXi
+        M = VXi.T @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
 
         u_g = np.zeros(M.shape[0], dtype=float)
@@ -240,7 +240,7 @@ class mem:
         
         print(f"\nSelected optimal α = {alpha_opt:.4e}")
         G_final = Di(kernel, rho_opt, self.delomega)
-        L_final = 0.5 * (corr - G_final) @ self.cov_mat_inv @ (corr - G_final)
+        L_final = 0.5 * (corr - G_final) @ np.linalg.inv(self.cov_mat) @ (corr - G_final)
         print(f"  χ²/N = {2*L_final/len(corr):.3f}\n")
 
         return rho_min
@@ -259,7 +259,6 @@ class mem:
         N_s = M.shape[0]
         
         _cache = {'b': None, 'rho': None}
-        VXi_T_cov_inv = VXi.T @ self.cov_mat_inv
         kernel_delomega = kernel * self.delomega
 
         def _get_rho(b):
@@ -273,46 +272,90 @@ class mem:
             """Gradient of Q (should equal zero at optimum)"""
             rho = _get_rho(b)
             G_rho = (kernel_delomega @ rho)
-            g = VXi_T_cov_inv @ (G_rho - corr)
-            f = -al * b - g
+            S = np.sum(rho - self.def_model - 
+                rho * np.nan_to_num(np.log(rho/self.def_model), 
+                                    neginf=-1e300)) * self.delomega
+            diff = (corr - G_rho)
+            L = 0.5 * diff @ np.linalg.inv(self.cov_mat) @ diff
+            f = L/len(corr) - al*S/len(rho)
+            print("f =", f)
             return f
 
-        def jac(b):
-            """Jacobian of gradient (Hessian of Q)"""
+        def gradient(b):
+            rho = _get_rho(b)
+            G_rho = (kernel_delomega @ rho)
+            diff = (corr - G_rho)
+            ceval, cevec = np.linalg.eigh(np.linalg.inv(self.cov_mat))
+            dL_drho_dw = -(kernel.T @ (diff / ceval))  # shape (nomega,)
+            # A_dw = A * omega_dw, so dL/dA = dL/dA_dw * omega_dw
+            dL_drho = dL_drho_dw/len(corr) #* omega_dw
+    
+            # dS/dA_dw = -log(A/m) → dS/dA = dS/dA_dw * omega_dw = -log(A/m)*omega_dw
+            log_ratio = np.log(np.maximum(rho / np.maximum(self.def_model, 1e-300), 1e-300))
+            dS_drho = -log_ratio/len(rho) #* omega_dw
+
+            grad_rho = (dL_drho - al * dS_drho) * rho
+            grad_b = U.T @ grad_rho
+            print("grad norm:", np.linalg.norm(grad_b))
+            return grad_b
+
+        """def jac(b):
+            Jacobian of gradient (Hessian of Q)
             rho = _get_rho(b)
             rho_U = rho[:, np.newaxis] * U
             A = kernel_delomega @ rho_U
             J_nonlinear = VXi_T_cov_inv @ A
             J = -al * np.eye(N_s) - J_nonlinear
-            return J
+            return J"""
 
+
+        res = minimize(
+            fun=residual,
+            x0=u_guess,
+            jac=gradient,
+            method="L-BFGS-B",   # very appropriate here
+            options={
+                "disp": True,
+                "maxiter": 500,
+                "ftol": 1e-8,
+                "gtol": 1e-8
+            }
+        )
+        
+        
         # Primary solver: hybr
-        res = root(
+        """res = root(
             residual,
             u_guess,
-            jac=jac,
+            jac=gradient,
             method='hybr',
             options={
                 'maxfev': 10000,
                 'xtol': 1e-8,
                 'factor': 0.1
             }
-        )
+        )"""
 
         # Fallback if hybr fails
         if not res.success:
-            res = root(
+            print("Not successful!")
+            print(res.message)
+            exit()
+            """res = root(
                 residual,
                 u_guess,
-                jac=jac,
+                jac=gradient,
                 method='lm',
                 options={
                     'maxiter': 15000,
                     'xtol': 1e-8,
                     'ftol': 1e-8
                 }
-            )
-        
+            )"""
+
+        print(res.nit)
+        print(res.message)
+        exit()
         # Extract solution
         u = res.x
         # Check if solution actually changed from initial guess
@@ -348,7 +391,7 @@ class mem:
         S = np.sum(rho - self.def_model - 
                 rho * np.nan_to_num(np.log(rho/self.def_model), 
                                     neginf=-1e300)) * self.delomega
-        L = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
+        L = 0.5 * (corr - G_pred) @ np.linalg.inv(self.cov_mat) @ (corr - G_pred)
         Q = al * S - L
         
         # Concise status output
@@ -370,12 +413,12 @@ class mem:
         P_alphaHM = 1 # Laplace's rule
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
         evs = np.zeros((len(self.alpha), len(self.w)))
-        Hess_mat = kernel.T @ self.cov_mat_inv @ kernel
+        Hess_mat = kernel.T @ np.linalg.inv(self.cov_mat) @ kernel
         Hess_mat = 0.5 * (Hess_mat + Hess_mat.T) # ensure symmetry
 
         for i in range(len(self.alpha)):
             rho_vec = np.maximum(rho[i][:].astype(np.float64), 1e-300) # avoid exact zeros for eigenvalue function
-            S_mat = np.sqrt(np.diag(rho_vec))
+            S_mat = np.sqrt(np.diag(rho_vec*self.delomega))
             lam_mat = S_mat @ Hess_mat @ S_mat
             lam_mat = 0.5 * (lam_mat + lam_mat.T) #ensure symmetry
 
@@ -401,8 +444,8 @@ class mem:
             S[i] = (np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))) * self.delomega
             G = Di(kernel, rho[i][:], self.delomega) 
             diff = corr - G
-            L[i] = 0.5 * diff @ self.cov_mat_inv @ diff 
-            prefactor[i] = np.prod(np.sqrt(self.alpha[i]/(self.alpha[i] + eigval)))
+            L[i] = 0.5 * diff @ np.linalg.inv(self.cov_mat) @ diff 
+            prefactor[i] = np.prod(np.sqrt(self.alpha[i]*self.delomega/(self.alpha[i]*self.delomega + eigval)))
             exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
         print("S-L:", self.alpha * S-L)
         print("prefactor, e(a*S-L)", prefactor, np.exp(self.alpha * S - L))
@@ -418,7 +461,7 @@ class mem:
         plt.subplot(1,3,2)
         plt.plot(self.alpha, P_alphaDHM, color = "tomato")
         plt.plot(self.alpha, prefactor, color = "cornflowerblue", alpha = 0.5)
-        plt.plot(self.alpha, np.exp(self.alpha*S + L), color = "green", alpha = 0.5)
+        plt.plot(self.alpha, np.exp(self.alpha*S - L), color = "green", alpha = 0.5)
         plt.xscale("log")
         plt.xlabel("alpha")
         plt.ylabel("P[alpha|D,H,M]")
@@ -508,7 +551,7 @@ class mem:
                             rho * np.nan_to_num(np.log(rho/self.def_model), 
                                                 neginf=-1e300)) * self.delomega
             G_pred = Di(kernel, rho, self.delomega)
-            L_vals[i] = 0.5 * (corr - G_pred) @ self.cov_mat_inv @ (corr - G_pred)
+            L_vals[i] = 0.5 * (corr - G_pred) @ np.linalg.inv(self.cov_mat) @ (corr - G_pred)
         
         Q_vals = self.alpha * S_vals - L_vals
 
@@ -655,7 +698,7 @@ class mem:
         plt.subplot(2, 3, 6)
         G_opt = Di(kernel, rho_min[idx_opt], self.delomega)
         try:
-            error = np.sqrt(np.diag(np.linalg.inv(self.cov_mat_inv)))
+            error = np.sqrt(np.diag(self.cov_mat))
         except:
             error = np.ones(len(corr)) * 0.001
         tau = np.arange(len(corr))
@@ -681,7 +724,7 @@ class mem:
         # 2. Fit quality
         G_pred = Di(kernel, rho, self.delomega)
         chi2_per_dof = (
-            2 * np.sum((corr - G_pred)**2 / np.diag(np.linalg.inv(self.cov_mat_inv)))
+            2 * np.sum((corr - G_pred)**2 / np.diag(self.cov_mat))
             / len(corr)
         )
         if chi2_per_dof > 5.0:
@@ -713,12 +756,17 @@ class mem:
         ) -> Tuple[np.ndarray, np.ndarray]:
         """Fit a correlator using the Maximum Entropy Method."""
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
+        #decorrelate the kernel
+        evals, evecs = np.linalg.eigh(self.cov_mat)
+        inv_sqrt_evals = 1.0 / np.sqrt(evals)
+        whitener = (inv_sqrt_evals[:, None] * evecs.T)
+        dc_kernel = whitener @ kernel
 
         if verbose:
             print("*"*40)
             print("Starting minimization using svd")
 
-        rho_min = self.step1(correlator, kernel)
+        rho_min = self.step1(correlator, dc_kernel)
 
         if verbose:
             print("*"*40)
@@ -866,13 +914,12 @@ class FitRunner:
         self.Nt = self.parameterHandler.get_params()["Nt"] or len(self.x)
         self.outputDir = os.path.abspath(self.parameterHandler.get_params()["outputDir"])
         self.outputFile = self.parameterHandler.get_params()["outputFile"] or f"{self.extractedQuantity}_{temp}_prior_{self.parameterHandler.get_params()['default_model']}_{os.path.basename(self.parameterHandler.get_correlator_file())}"
-        cov = np.diag(self.error ** 2)
-        cov_inv = np.linalg.inv(cov)
+        cov_mat = np.diag(self.error ** 2)
         self.fitter = mem(
              self.omega,
              self.alpha,
              self.default_model,
-             cov_inv,
+             cov_mat,
              self.Nt)
 
     def extractColumns(
