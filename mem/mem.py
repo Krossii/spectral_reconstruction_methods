@@ -184,9 +184,10 @@ class mem:
             self, 
             corr: np.ndarray, 
             kernel: np.ndarray,
+            dc_kernel: np.ndarray, # Change: accept decorrelated kernel
             ) -> np.ndarray:
         """Minimization of Q = alpha S - L for all alpha as per MEM paper step 1"""
-        U, xi, Vt = np.linalg.svd(kernel.T, full_matrices=False)
+        U, xi, Vt = np.linalg.svd(dc_kernel.T, full_matrices=False)
         cutoff = 1e-10 * xi[0]  # relative to largest singular value
         xi = xi[xi > cutoff]
         s = xi.size
@@ -209,7 +210,14 @@ class mem:
 
 
         for i in range(len(self.alpha)):
-            rho_min_array = self.minmizer_root(corr, VXi, M, U, self.alpha[i], u_g, kernel)
+            rho_min_array = self.minmizer_root(
+                self.dc_corr,  #this might not work?
+                VXi, 
+                M, 
+                U, 
+                self.alpha[i], 
+                u_g, 
+                dc_kernel)
             rho_min[i][:] = rho_min_array
             rho_safe = np.maximum(rho_min_array, 1e-300)
             def_model_safe = np.maximum(self.def_model, 1e-300)
@@ -220,7 +228,7 @@ class mem:
                 print(f"  ⚠ Warning: NaN in log(rho/m), using zeros for u_g")
                 u_g = np.zeros(M.shape[0])
             else:
-                u_g = np.linalg.solve(U.T @ U, U.T @ log_ratio)
+                u_g = U.T @ log_ratio # removed the solve call
             G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
         plt.figure(1, figsize=(12,4))
@@ -247,19 +255,18 @@ class mem:
     
     def minmizer_root(
         self,
-        corr: np.ndarray,
+        dc_corr: np.ndarray,
         VXi: np.ndarray,
         M: np.ndarray,
         U: np.ndarray,
         al: float,
         u_guess: np.ndarray,
-        kernel: np.ndarray
+        dc_kernel: np.ndarray
     ) -> np.ndarray:
-        """Minimize Q = alpha*S + L using root finding"""        
-        N_s = M.shape[0]
+        """Minimize -Q = -alpha*S + L via L-BFGS-B in the SVD basis b, where rho(b) = def_model * exp(U @ b)"""
         
         _cache = {'b': None, 'rho': None}
-        kernel_delomega = kernel * self.delomega
+        dc_kernel_dw = dc_kernel * self.delomega
 
         def _get_rho(b):
             """Cached rho computation"""
@@ -268,139 +275,54 @@ class mem:
                 _cache['rho'] = self.def_model * np.exp(U @ b)
             return _cache['rho']
 
-        def residual(b):
-            """Gradient of Q (should equal zero at optimum)"""
+        def objective_and_grad(b):
+            """Returns (-Q, d(-Q)/db)"""
             rho = _get_rho(b)
-            G_rho = (kernel_delomega @ rho)
+            rho_dw = rho * self.delomega
+
+            G_rho = dc_kernel_dw @ rho
+
+            diff = dc_corr - G_rho
+            L = 0.5 * np.dot(diff, diff)
+
+            log_ratio = np.log(np.maximum(rho / np.maximum(self.def_model, 1e-300),1e-300))
             S = np.sum(rho - self.def_model - 
-                rho * np.nan_to_num(np.log(rho/self.def_model), 
-                                    neginf=-1e300)) * self.delomega
-            diff = (corr - G_rho)
-            L = 0.5 * diff @ np.linalg.inv(self.cov_mat) @ diff
-            f = L/len(corr) - al*S/len(rho)
-            print("f =", f)
-            return f
+                rho * log_ratio) * self.delomega
+            
+            neg_Q = L - al * S
 
-        def gradient(b):
-            rho = _get_rho(b)
-            G_rho = (kernel_delomega @ rho)
-            diff = (corr - G_rho)
-            ceval, cevec = np.linalg.eigh(np.linalg.inv(self.cov_mat))
-            dL_drho_dw = -(kernel.T @ (diff / ceval))  # shape (nomega,)
-            # A_dw = A * omega_dw, so dL/dA = dL/dA_dw * omega_dw
-            dL_drho = dL_drho_dw/len(corr) #* omega_dw
-    
-            # dS/dA_dw = -log(A/m) → dS/dA = dS/dA_dw * omega_dw = -log(A/m)*omega_dw
-            log_ratio = np.log(np.maximum(rho / np.maximum(self.def_model, 1e-300), 1e-300))
-            dS_drho = -log_ratio/len(rho) #* omega_dw
+            dL_drho = -(dc_kernel.T @ diff) * self.delomega
+            dS_drho = -log_ratio * self.delomega
 
-            grad_rho = (dL_drho - al * dS_drho) * rho
-            grad_b = U.T @ grad_rho
-            print("grad norm:", np.linalg.norm(grad_b))
-            return grad_b
+            grad_neg_Q = U.T @ ((dL_drho - al * dS_drho) * rho)
 
-        """def jac(b):
-            Jacobian of gradient (Hessian of Q)
-            rho = _get_rho(b)
-            rho_U = rho[:, np.newaxis] * U
-            A = kernel_delomega @ rho_U
-            J_nonlinear = VXi_T_cov_inv @ A
-            J = -al * np.eye(N_s) - J_nonlinear
-            return J"""
+            return neg_Q, grad_neg_Q
 
 
         res = minimize(
-            fun=residual,
+            fun=objective_and_grad,
             x0=u_guess,
-            jac=gradient,
-            method="L-BFGS-B",   # very appropriate here
+            jac=True,
+            method="L-BFGS-B",
             options={
-                "disp": True,
                 "maxiter": 500,
-                "ftol": 1e-8,
+                "ftol": 1e-12,
                 "gtol": 1e-8
             }
         )
         
-        
-        # Primary solver: hybr
-        """res = root(
-            residual,
-            u_guess,
-            jac=gradient,
-            method='hybr',
-            options={
-                'maxfev': 10000,
-                'xtol': 1e-8,
-                'factor': 0.1
-            }
-        )"""
-
-        # Fallback if hybr fails
         if not res.success:
-            print("Not successful!")
-            print(res.message)
-            exit()
-            """res = root(
-                residual,
-                u_guess,
-                jac=gradient,
-                method='lm',
-                options={
-                    'maxiter': 15000,
-                    'xtol': 1e-8,
-                    'ftol': 1e-8
-                }
-            )"""
+            print(f"    ⚠ α={al:.2e}: optimizer did not fully converge: {res.message}")
 
-        print(res.nit)
-        print(res.message)
-        exit()
-        # Extract solution
         u = res.x
-        # Check if solution actually changed from initial guess
-        u_change = np.linalg.norm(u - u_guess)
-        if u_change < 1e-6:
-            print(f"    ⚠ WARNING: Solution didn't change from initial guess!")
-            print(f"    This usually means optimizer failed or alpha is too small")
-        
         rho = self.def_model * np.exp(U @ u)
-        G_pred = Di(kernel, rho, self.delomega)
 
-        # Check if rho is reasonable
-        rho_change = np.linalg.norm(rho - self.def_model)
-        if rho_change < 1e-6:
-            print(f"    ⚠ WARNING: rho is identical to default model!")
 
-        
-        # Compute quality metrics
-        final_res = residual(u)
-        res_norm = np.linalg.norm(final_res)
+        _, neg_Q_final = objective_and_grad(u), res.fun
+        grad_norm = np.linalg.norm(res.jac) if hasattr(res, 'jac') and res.jac is not None else float('nan')
+        status = "✓" if res.success else "⚠"
+        print(f"  α={al:.2e} {status} nit={res.nit} |∇(-Q)|={grad_norm:.2e} -Q={neg_Q_final:.4e}")
 
-        # Check convergence quality
-        if not res.success:
-            print(f"    ✗ Optimizer failed: {res.message}")
-            if res_norm > 1e-2:
-                print(f"    ✗ SEVERE: ||∇Q||={res_norm:.2e} - returning default model!")
-                # Return default model if optimizer completely failed
-                return self.def_model
-        
-        if res_norm > 1e-3:
-            print(f"    ⚠ Poor convergence: ||∇Q||={res_norm:.2e}")
-        
-        S = np.sum(rho - self.def_model - 
-                rho * np.nan_to_num(np.log(rho/self.def_model), 
-                                    neginf=-1e300)) * self.delomega
-        L = 0.5 * (corr - G_pred) @ np.linalg.inv(self.cov_mat) @ (corr - G_pred)
-        Q = al * S - L
-        
-        # Concise status output
-        status = "✓" if res.success else "✗"
-        print(f"  α={al:.2e} {status} ||∇Q||={res_norm:.2e} S={S:.3e} L={L:.3e} Q={Q:.3e}")
-        
-        if res_norm > 1e-3:
-            print(f"    ⚠ Large gradient! Solution may be poor.")
-        
         return rho
 
     def step2(
@@ -413,7 +335,7 @@ class mem:
         P_alphaHM = 1 # Laplace's rule
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
         evs = np.zeros((len(self.alpha), len(self.w)))
-        Hess_mat = kernel.T @ np.linalg.inv(self.cov_mat) @ kernel
+        Hess_mat = self.dc_kernel.T @ self.dc_kernel
         Hess_mat = 0.5 * (Hess_mat + Hess_mat.T) # ensure symmetry
 
         for i in range(len(self.alpha)):
@@ -442,57 +364,85 @@ class mem:
             
             evs[i][:] = eigval
             S[i] = (np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))) * self.delomega
-            G = Di(kernel, rho[i][:], self.delomega) 
-            diff = corr - G
-            L[i] = 0.5 * diff @ np.linalg.inv(self.cov_mat) @ diff 
-            prefactor[i] = np.prod(np.sqrt(self.alpha[i]*self.delomega/(self.alpha[i]*self.delomega + eigval)))
-            exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
-        print("S-L:", self.alpha * S-L)
-        print("prefactor, e(a*S-L)", prefactor, np.exp(self.alpha * S - L))
-        P_alphaDHM = P_alphaHM * exp
+            G_dc = self.dc_kernel @ (rho[i][:] * self.delomega)
+            diff_dc = self.dc_corr - G_dc
+            L[i] = 0.5 * np.dot(diff_dc, diff_dc)
+
+            pos = eigval > 0 
+            log_prefactor = 0.5 * np.sum(np.log(self.alpha[i] * self.delomega) - np.log(self.alpha[i] * self.delomega + eigval[pos]))
+            prefactor[i] = log_prefactor
+            exp[i] = log_prefactor + self.alpha[i] * S[i] - L[i]
+
+            #prefactor[i] = np.prod(np.sqrt(self.alpha[i]*self.delomega/(self.alpha[i]*self.delomega + eigval)))
+            #exp[i] = prefactor[i] * np.exp(self.alpha[i] * S[i] - L[i]) 
+
+        log_P = exp
+        log_P_shifted = log_P - log_P.max()
+        P_alphaDHM = np.exp(log_P_shifted)
+        
+        
+        print("log P (raw):", log_P)
+        print("log P range: [{:.3e}, {:.3e}]".format(log_P.min(), log_P.max()))
 
         # --- diagnostics ---
-        plt.figure(2, figsize=(15,5))
-        plt.subplot(1,3,1)
-        plt.plot(np.log(self.alpha), np.log(evs), alpha = 0.3, linestyle = "--")
-        plt.plot(np.log(self.alpha), np.log(self.alpha))
-        plt.xlabel("log(alpha)")
-        plt.ylabel("log(mean eigenvalue)")
-        plt.subplot(1,3,2)
-        plt.plot(self.alpha, P_alphaDHM, color = "tomato")
-        plt.plot(self.alpha, prefactor, color = "cornflowerblue", alpha = 0.5)
-        plt.plot(self.alpha, np.exp(self.alpha*S - L), color = "green", alpha = 0.5)
-        plt.xscale("log")
-        plt.xlabel("alpha")
-        plt.ylabel("P[alpha|D,H,M]")
-        plt.subplot(1,3,3)
-        plt.plot(self.alpha, self.alpha*S, color = "tomato")
-        plt.plot(self.alpha, L, color = "cornflowerblue")
-        plt.plot(self.alpha, self.alpha*S + L, color = "green")
-        plt.xlabel("alpha")
-        plt.ylabel("Q, L, alpha*S")
+        fig, axes = plt.subplots(1,3,figsize=(15,5))
+
+        valid_ev = evs > 0
+        log_evs_safe  = np.where(valid_ev, np.log(np.where(valid_ev, evs, 1.0)), np.nan)
+        axes[0].plot(np.log(self.alpha), log_evs_safe, alpha=0.3, linestyle = "--")
+        axes[0].plot(np.log(self.alpha), np.log(self.alpha), color="black", linewidth=2, label = "log α")
+        axes[0].set_xlabel("log(α)")
+        axes[0].set_ylabel("log(eigenvalue)")
+        axes[0].set_title("Lambda eigenvalues vs α")
+        axes[0].legend()
+
+        axes[1].plot(self.alpha, P_alphaDHM, color="tomato", label="P[α|D,H,M]")
+        axes[1].plot(self.alpha, np.exp(np.array(prefactor) - np.array(prefactor).max()),
+                     color="cornflowerblue", alpha=0.6, label="prefactor (rel.)")
+        axes[1].plot(self.alpha,
+                     np.exp(self.alpha * S - L - (self.alpha * S - L).max()),
+                     color="green", alpha=0.6, label="e^(αS-L) (rel.)")
+        axes[1].set_xscale("log")
+        axes[1].set_xlabel("α")
+        axes[1].set_ylabel("P[α|D,H,M]  (normalised to peak=1)")
+        axes[1].set_title("Probability distribution")
+        axes[1].legend()
+
+        axes[2].plot(self.alpha, self.alpha * S, color="tomato",  label="α·S")
+        axes[2].plot(self.alpha, L,               color="cornflowerblue", label="L")
+        axes[2].plot(self.alpha, self.alpha * S - L, color="green", label="Q = α·S − L")
+        axes[2].set_xlabel("α")
+        axes[2].set_ylabel("Value")
+        axes[2].set_title("Q, L, α·S")
+        axes[2].legend()
+ 
         plt.tight_layout()
         plt.savefig("mem_prob_dist.png")
+        plt.close()
+
         # --- end diagnostics ---
 
-        alpha_ind = []
-        for i in range(len(self.alpha)):
-            if P_alphaDHM[i] >= 1e-8 * P_alphaDHM.max():
-                alpha_ind.append(i)
+        alpha_ind = [i for i in range(len(self.alpha)) 
+                    if P_alphaDHM[i] >= 1e-8 * P_alphaDHM.max()]
+
         alpha_int = np.zeros(len(alpha_ind))
         rho_red = np.zeros((len(alpha_ind), len(self.w)))
         P_alphaDHM_red = np.zeros(len(alpha_ind))
+
         for i in range(len(alpha_ind)):
             alpha_int[i] = self.alpha[alpha_ind[i]]
             P_alphaDHM_red[i] = P_alphaDHM[alpha_ind[i]]
             rho_red[i][:] = rho[alpha_ind[i]][:]
+        
+        if len(alpha_int) <= 2: 
+            print("Warning: Probability distribution too narrow, using maximum only for averaging")
+            best = np.argmax(P_alphaDHM)
+            return rho[best], P_alphaDHM, P_alphaDHM, self.alpha, Hess_mat
+
+
         normalizing_fac = integrate.trapezoid(P_alphaDHM_red, alpha_int)
         rho_out = np.zeros(len(self.w))
-        if len(alpha_int) <= 2: 
-            P_alphaDHM_red = 1
-            normalizing_fac = 1
-            print("Warning: Probability distribution too narrow, using maximum only for averaging")
-            return np.mean(rho, axis=0), P_alphaDHM, P_alphaDHM_red, alpha_int, Hess_mat
+        
         for i in range(len(self.w)):
             rho_out[i] = integrate.trapezoid(np.transpose(rho_red)[i][:] * P_alphaDHM_red/normalizing_fac, alpha_int)
         return rho_out, P_alphaDHM/normalizing_fac, P_alphaDHM_red/normalizing_fac, alpha_int, Hess_mat
@@ -550,8 +500,9 @@ class mem:
             S_vals[i] = np.sum(rho - self.def_model - 
                             rho * np.nan_to_num(np.log(rho/self.def_model), 
                                                 neginf=-1e300)) * self.delomega
-            G_pred = Di(kernel, rho, self.delomega)
-            L_vals[i] = 0.5 * (corr - G_pred) @ np.linalg.inv(self.cov_mat) @ (corr - G_pred)
+            G_dc = self.dc_kernel @ (rho * self.delomega)
+            diff_dc = self.dc_corr - G_dc
+            L_vals[i] = 0.5 * np.dot(diff_dc, diff_dc)
         
         Q_vals = self.alpha * S_vals - L_vals
 
@@ -759,14 +710,16 @@ class mem:
         #decorrelate the kernel
         evals, evecs = np.linalg.eigh(self.cov_mat)
         inv_sqrt_evals = 1.0 / np.sqrt(evals)
-        whitener = (inv_sqrt_evals[:, None] * evecs.T)
-        dc_kernel = whitener @ kernel
+        whitener = inv_sqrt_evals[:, None] * evecs.T
+        
+        self.dc_kernel = whitener @ kernel # store the disconnected kernel in self C^(-1/2) K
+        self.dc_corr = whitener @ correlator # C^(-1/2) G
 
         if verbose:
             print("*"*40)
             print("Starting minimization using svd")
 
-        rho_min = self.step1(correlator, dc_kernel)
+        rho_min = self.step1(correlator, kernel, self.dc_kernel)
 
         if verbose:
             print("*"*40)

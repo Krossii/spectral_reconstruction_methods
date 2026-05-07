@@ -120,10 +120,10 @@ The following parameters can be specified in the JSON file or as command line ar
 | **alpha_points**        | `64`              | Any float                         | Specific to `"MEM"`: The number of points in the alpha range |
 | **default_model**        | `"constant"`              | `"constant"`,`"quadratic"`,`"exact"`, `"file"`              | Specific to `"MEM"`: The default model to be used. The values should be in the second column. |
 | **default_model_file**        | `""`              | Any string path              | Specific to `"MEM"`: The file path to the default model. |
-| **omega_min**        | `0`              | Any float                         | The lower bound of the frequency range |
-| **omega_max**        | `10`             | Any float                         | The upper bound of the frequency range |
+| **omega_min**        | `0`              | Any float                         | The lower bound of the frequency range (in lattice units) |
+| **omega_max**        | `10`             | Any float                         | The upper bound of the frequency range (in lattice units) |
 | **omega_points**     | `500`            | Any integer                       | The number of points in the frequency range |
-| **Nt**               | `0`              | Any integer                       | The temporal extent of the lattice. If `0`, the program will use the number of rows in the input file. Beware that this will cause problems if only a range of the correlator is fitted. |
+| **Nt**               | `0`              | Any integer                       | The temporal extent of the lattice (So tau will also be in lattice units). If `0`, the program will use the number of rows in the input file. Beware that this will cause problems if only a range of the correlator is fitted. |
 | **extractedQuantity**| `"RhoOverOmega"` | `"RhoOverOmega"`, `"Rho"`         | The extracted quantity. Can be either $\rho(\omega)$ or $\rho(\omega)/\omega` |
 | **FiniteT_kernel**   | `True`           | `True`, `False`                   | Use the finite temperature kernel for the correlator or the vaccum kernel |
 | **multiFit**         | `False`          | `True`, `False`                   | If set to `True`, all statistical samples of the correlator will be fitted together. No error analysis is conducted! |
