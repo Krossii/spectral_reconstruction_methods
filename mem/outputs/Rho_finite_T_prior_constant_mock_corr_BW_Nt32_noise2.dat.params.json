@@ -6,13 +6,13 @@
     "default_model": "constant",
     "default_model_file": "",
     "omega_min": 0,
-    "omega_max": 20,
+    "omega_max": 5,
     "omega_points": 500,
-    "Nt": 16,
+    "Nt": 32,
     "extractedQuantity": "Rho",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../../mock-data-main/finite_T/uncorrelated_data/2PGAUSS/mock_corr_2PGAUSS_Nt16_noise3.dat",
+    "correlatorFile": "../../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -21,7 +21,5 @@
     "saveParams": true,
     "verbose": true,
     "outputFile": "",
-    "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "outputDir": "./outputs/"
 }
