@@ -235,7 +235,7 @@ class mem:
         plt.subplot(1,2,1)
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:])
-        #plt.plot(self.w, self.def_model, color = "black", linestyle = "--")
+        plt.plot(self.w, self.def_model, color = "black", linestyle = "--")
         plt.subplot(1,2,2)
         plt.scatter(self.tau, corr, color = "tomato", marker = "x")
         plt.scatter(self.tau, G_rho, color = "cornflowerblue", marker = "x")
