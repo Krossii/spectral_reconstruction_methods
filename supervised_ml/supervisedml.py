@@ -1,4 +1,3 @@
-#this needs is errorhandling, the datasets, then some testing and eventually an implementation of checkpointing and state dict saving
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import load_model
@@ -12,6 +11,9 @@ import time
 import pprint
 import os
 from typing import List, Tuple, Callable
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+tf.get_logger().setLevel('ERROR')
 
 def KL_kernel_Momentum(
         Momentum, 
@@ -71,7 +73,9 @@ def Di(
     delomega = tf.cast(delomega, dtype=tf.float32)  # Cast delomega to float32
 
     # Perform matrix multiplication
-    rhoi = tf.expand_dims(rhoi, axis=0) if len(rhoi.shape) == 1 else rhoi  # Ensure rhoi is 2D for multiplication
+    if rhoi.shape.rank == 1: # Ensure rhoi is 2D for multiplication
+        rhoi = tf.expand_dims(rhoi, axis=0)
+    
     dis = tf.matmul(KL, rhoi, transpose_b = True)  # Shape will be [Nt, batch_size]
     dis = tf.transpose(dis) #transpose to [batch_size, Nt]
     dis = dis * delomega  # Multiply by delomega
@@ -156,7 +160,6 @@ class KadesConv(
         x = self.hidden_layer2(x)
         x = self.flatten_layer(x)
         x = self.hidden_layer3(x)
-        x = self.hidden_layer3(x)
         x = self.hidden_layer4(x)
         return self.output_layer(x)
     
@@ -236,20 +239,8 @@ class LossCalculator:
             self.std = tf.cast(self.std, dtype=tf.float32)
         self.kernel = kernel
         self.delomega = delomega
-        self.lambda_s_func = lambda_s_func
-        self.lambda_l2_func = lambda_l2_func
-
-    def get_lambda_s(
-            self, 
-            epoch: int
-            ) -> float:
-        return self.lambda_s_func(epoch)
-    
-    def get_lambda_l2(
-            self, 
-            epoch: int
-            ) -> float:
-        return self.lambda_l2_func(epoch)
+        self.lambda_s = tf.Variable(0.0, trainable=False, dtype=tf.float32)
+        self.lambda_l2 = tf.Variable(0.0, trainable=False, dtype=tf.float32)
 
     def l2_regularization(
             self, 
@@ -263,7 +254,8 @@ class LossCalculator:
             self, 
             rho: tf.Tensor = None
             ) -> tf.Tensor:
-        return tf.reduce_sum(tf.square(rho[:, 1:] - rho[:, :-1]))
+        diff = tf.square(rho[:, 1:] - rho[:, :-1])
+        return tf.reduce_mean(tf.reduce_sum(diff, axis=1))
     
     def custom_loss(
             self, 
@@ -274,8 +266,9 @@ class LossCalculator:
         weighting = tf.cast(tf.squeeze(weighting), dtype=tf.float32)
         y_true = tf.cast(tf.squeeze(y_true), dtype=tf.float32)
         y_pred = tf.cast(tf.squeeze(y_pred), dtype=tf.float32)
-        weighting /= weighting[0]
-        assert y_pred.shape == y_true.shape == weighting.shape, "Shape mismatch in loss calculation"
+        #weighting /= weighting[0]      ### dont need normalization when using sigma as noise in data creation
+        tf.debugging.assert_equal(tf.shape(y_pred), tf.shape(y_true))
+        tf.debugging.assert_equal(tf.shape(y_true), tf.shape(weighting))
         chi_squared = tf.square((y_true - y_pred)/ weighting)
         return tf.reduce_mean(chi_squared)
     
@@ -286,12 +279,11 @@ class LossCalculator:
             ) -> tf.Tensor:
         rho_true = tf.cast(tf.squeeze(rho_true), dtype=tf.float32)
         rho = tf.cast(tf.squeeze(rho), dtype=tf.float32)
-        assert rho.shape == rho_true.shape, "Shape mismatch in rho loss calculation"
+        tf.debugging.assert_equal(tf.shape(rho), tf.shape(rho_true))
         return tf.reduce_mean(tf.square(rho - rho_true))
 
     def total_loss(
             self, 
-            epoch: int,
             rho: tf.Tensor, 
             y_true: tf.Tensor,
             err: tf.Tensor, 
@@ -304,8 +296,8 @@ class LossCalculator:
         l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
         #total_loss_value = rho_loss
-        total_loss_value = main_loss + self.get_lambda_s(epoch) * smooth_loss + self.get_lambda_l2(epoch) * l2_loss #+ rho_loss
-        return total_loss_value, [main_loss, self.get_lambda_s(epoch)*smooth_loss, self.get_lambda_l2(epoch)*l2_loss, rho_loss] ### maybe fix the passing here at some point
+        total_loss_value = main_loss + self.lambda_s * smooth_loss + self.lambda_l2 * l2_loss #+ rho_loss
+        return total_loss_value, [main_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss, rho_loss] ### maybe fix the passing here at some point
 
 class networkTrainer:
     def __init__(
@@ -317,18 +309,18 @@ class networkTrainer:
        self.model = model
        self.optimizer = optimizer
        self.loss_calculator = loss_calculator
+       self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(12,4))
 
-    @tf.function(reduce_retracing=True)
+    @tf.function()
     def train_step(
-            self, 
-            epoch: int, 
+            self,
             corr: tf.Tensor, 
             err: tf.Tensor, 
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
             rho_pred = self.model(corr)
-            total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho_pred, y_true = corr, err=err, rho_true = rho_true)
+            total_loss_value, individual_losses = self.loss_calculator.total_loss(rho=rho_pred, y_true = corr, err=err, rho_true = rho_true)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))    
@@ -336,19 +328,17 @@ class networkTrainer:
     
     def test_step(
             self, 
-            epoch: int, 
             corr: tf.Tensor, 
             err: tf.Tensor, 
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         rho = self.model(corr)
-        total_loss_value, individual_losses = self.loss_calculator.total_loss(epoch, rho=rho, y_true = corr, err= err, rho_true = rho_true)
+        total_loss_value, individual_losses = self.loss_calculator.total_loss(rho=rho, y_true = corr, err= err, rho_true = rho_true)
         return total_loss_value, individual_losses
 
     def trainloop(
             self, 
             dat: tf.data.Dataset,
-            epoch: int, 
             verbose: bool = False
             ):
         train_losses = []
@@ -356,18 +346,18 @@ class networkTrainer:
         step = 0
 
         for step, (X, y, z) in enumerate(dat):
-            tau = np.arange(36) # hardcoded ... 
-            plt.clf()
-            plt.figure(figsize=(12,4))
-            plt.subplot(1,2,1) 
-            plt.plot(X[0])
-            plt.plot(self.model(y)[0])
-            plt.subplot(1,2,2)
-            plt.scatter(tau, y[:][0], marker = 'x')
-            plt.scatter(tau, Di(self.loss_calculator.kernel, self.model(y)[0][:], self.loss_calculator.delomega), marker = 'o')
-            plt.yscale('log')
-            plt.savefig("debug.png")
-            total_loss_value, individual_losses = self.train_step(epoch, corr=y, err=z, rho_true = X)
+            if step == 0:  # only plot on first batch of each epoch
+                rho_pred=self.model(y)[0]
+                tau = np.arange(36) # hardcoded ... 
+                self.ax1.cla()
+                self.ax1.plot(X[0])
+                self.ax1.plot(rho_pred)
+                self.ax2.cla()
+                self.ax2.scatter(tau, y[:][0], marker='x')
+                self.ax2.scatter(tau, Di(self.loss_calculator.kernel, rho_pred, self.loss_calculator.delomega), marker='o')
+                self.ax2.set_yscale('log')
+                self.fig.savefig("debug.png")
+            total_loss_value, individual_losses = self.train_step(corr=y, err=z, rho_true = X)
             train_losses.append(total_loss_value.numpy())
             for i in range(len(individual_losses)):
                 individual_losses[i] = individual_losses[i].numpy()
@@ -379,13 +369,12 @@ class networkTrainer:
     def testloop(
             self, 
             dat: tf.data.Dataset,
-            epoch: int, 
             verbose: bool = False
             ):
         test_losses = []
         test_losses_ind = []
         for X,y,z in dat:
-            total_loss_value, individual_losses = self.test_step(epoch, corr=y, err=z, rho_true = X)
+            total_loss_value, individual_losses = self.test_step(corr=y, err=z, rho_true = X)
             test_losses.append(total_loss_value)
             test_losses_ind.append(individual_losses)
         if verbose:
@@ -410,8 +399,8 @@ class networkTrainer:
         for epoch in range(start_epoch, start_epoch + num_epochs):
             if verbose:
                 print(f'\nStart of epoch %d' %(epoch,))
-            train_losses, train_losses_ind = self.trainloop(train_dat, epoch, verbose)
-            val_losses, val_losses_ind = self.testloop(test_dat, epoch, verbose)
+            train_losses, train_losses_ind = self.trainloop(train_dat, verbose)
+            val_losses, val_losses_ind = self.testloop(test_dat, verbose)
             t_losses.append(tf.reduce_sum(train_losses))
             t_individual_losses.append(tf.reduce_sum(train_losses_ind, axis=0))
             v_losses.append(tf.reduce_sum(val_losses))
@@ -588,13 +577,12 @@ class supervisedFit:
         validation_dat = tf.data.Dataset.zip((validation_fcts, validation_corrs, validation_errs))
     
         train_dat = train_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
-        validation_dat = validation_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
+        validation_dat = validation_dat.batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
         #maybe as a to do: checkpointing
         trainer = networkTrainer(model, optimizer, lossCalc)
         for lambda_s, lambda_l2, learning_rate, epochs in zip(self.lambda_s, self.lambda_l2, self.learning_rate, self.epochs):
-            optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-            lossCalc.lambda_s_func = lambda x: lambda_s
-            lossCalc.lambda_l2_func = lambda x: lambda_l2
+            lossCalc.lambda_s.assign(lambda_s)
+            lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
             t_total_loss_history_tmp, t_loss_history_tmp, v_total_loss_history_tmp, v_loss_history_tmp = trainer.train(
                 epochs, train_dat, validation_dat, verbose=verbose

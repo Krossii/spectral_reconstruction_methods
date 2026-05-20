@@ -264,28 +264,31 @@ class correlators:
             self, 
             corr: np.ndarray
             ):
+        n = len(corr)
+        sigma = np.zeros(n)
+        noise = np.zeros(n)
+
         if np.all(corr):
-            sigma = [corr[tau] * (tau+1) for tau in range(len(corr)//2 + 1)]
-            noise_half = [
-                self.parameterHandler.get_params()["data_noise"] * np.random.normal(0, sigma[tau]) 
-                for tau in range(len(corr)//2 + 1)
-                ]
-            noise = np.zeros(len(corr))
-            for tau in range(len(corr)//2 + 1): 
-                noise[tau] = noise_half[tau]
-            for tau in range(1, len(corr)//2):
-                noise[len(corr)-tau] = noise_half[tau]
+            sigma_half = [corr[tau] * (tau+1) for tau in range(len(corr)//2 + 1)]
+            for tau in range(n // 2 + 1):
+                s = self.parameterHandler.get_params()["data_noise"] * sigma_half[tau]
+                sigma[tau] = s
+                noise[tau] = np.random.normal(0, s)
+            for tau in range(1, n // 2):
+                sigma[n - tau] = sigma_half[tau] * self.parameterHandler.get_params()["data_noise"]
+                noise[n - tau] = noise[tau]
             # symmetric noise
         else:
             print("Zero in correlator found")
-            noise = np.zeros(len(corr))
-            for i in range(len(corr)):
+            for i in range(n):
                 if corr[i] == 0:
-                    noise[i] = 1
-                    print("Set noise for this value of the correlator to 1")
+                    sigma[i] = 1.0
                 else:
-                    noise[i] = np.random.normal(0, self.parameterHandler.get_params()["data_noise"]/corr[i])
-        return noise
+                    s = self.parameterHandler.get_params()["data_noise"] * abs(corr[i])
+                    sigma[i] = s
+                    noise[i] = np.random.normal(0, s)
+        noisy_corr = corr + noise
+        return noisy_corr, sigma
 
 class create_datset:
     def __init__(
@@ -311,9 +314,9 @@ class create_datset:
             self
             ):
         one_dat = []
-        A = np.linspace(0.01, 0.1, 2)
-        M = np.linspace(0.05, 0.11, 2)
-        G = np.linspace(0.03, 0.11, 2)
+        A = np.linspace(0.1, 1.0, 10)
+        M = np.linspace(0.5, 2.0, 10)
+        G = np.linspace(0.1, 0.4, 10)
         if self.parameterHandler.get_verbose:
             print("*"*40)
             print("Creating single peaked Breit Wigner.")
@@ -327,13 +330,13 @@ class create_datset:
                     #    print(A[i], M[j], G[k])
                     #normed_rho = rho
                     corr = self.get_corr(self.w, self.tau, rho)
-                    noise = self.noise(corr)
+                    noisy_corr, sigma = self.noise(corr)
                     if np.any(np.isnan(rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                         print("Nan value in single peaked BW")
                     one_dat.append({
                         'fct': rho,
-                        'corr': corr,
-                        'noise': noise,
+                        'corr': noisy_corr,
+                        'noise': sigma,
                     })
         
         mult_dat = []
@@ -357,13 +360,13 @@ class create_datset:
                     if np.max(normed_rho) >= 5:
                         print(A[i][:], M[j][:], G[k][:])
                     corr = self.get_corr(self.w, self.tau, normed_rho)
-                    noise = self.noise(corr)
+                    noisy_corr, sigma = self.noise(corr)
                     if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                         print("Nan value in double peaked BW")
                     mult_dat.append({
                         'fct': normed_rho,
-                        'corr': corr,
-                        'noise': noise,
+                        'corr': noisy_corr,
+                        'noise': sigma,
                     })
         return one_dat, mult_dat
 
@@ -382,13 +385,13 @@ class create_datset:
                 normalizing_fac = integrate.trapezoid(rho, self.w)
                 normed_rho = rho/normalizing_fac
                 corr = self.get_corr(self.w, self.tau, normed_rho)
-                noise = self.noise(corr)
+                noisy_corr, sigma = self.noise(corr)
                 if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                     print("Nan value in gaussian non zero")
                 dat.append({
                     'fct': normed_rho,
-                    'corr': corr,
-                    'noise': noise,
+                    'corr': noisy_corr,
+                    'noise': sigma,
                 })
         return dat
 
@@ -407,13 +410,13 @@ class create_datset:
                 normalizing_fac = integrate.trapezoid(rho, self.w)
                 normed_rho = rho/normalizing_fac
                 corr = self.get_corr(self.w, self.tau, normed_rho)
-                noise = self.noise(corr)
+                noisy_corr, sigma = self.noise(corr)
                 if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                     print("Nan value in step function")
                 dat.append({
                     'fct': normed_rho,
-                    'corr': corr,
-                    'noise': noise,
+                    'corr': noisy_corr,
+                    'noise': sigma,
                 })
         return dat
 
@@ -432,13 +435,13 @@ class create_datset:
                 normalizing_fac = integrate.trapezoid(rho, self.w)
                 normed_rho = rho/normalizing_fac
                 corr = self.get_corr(self.w, self.tau, normed_rho)
-                noise = self.noise(corr)
+                noisy_corr, sigma = self.noise(corr)
                 if np.any(np.isnan(normed_rho)) or np.any(np.isnan(corr)) or np.any(np.isnan(noise)):
                     print("Nan value in peak function")                
                 dat.append({
                     'fct': normed_rho,
-                    'corr': corr,
-                    'noise': noise,
+                    'corr': noisy_corr,
+                    'noise': sigma,
                 })
         return dat
 
@@ -672,7 +675,7 @@ def main(
 
 
 paramsDefaultDict = {
-    "Method": "UnsupervisedNN",
+    "Method": "SupervisedNN",
     #NetworkParams (Ai specrec)
     "lambda_s": [1e-5],
     "lambda_l2": [1e-8],
