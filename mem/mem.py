@@ -120,6 +120,19 @@ def get_default_model(
             return np.ones(len(w)) * m_0
         else:
             return np.ones(len(w)) * 1e-2
+    if defmod == "linear":
+        if file != "":
+            data = np.loadtxt(file)
+            omega_file = data[:, 0]
+            exact = data[:, 1]
+            m_1 = np.trapz(exact*omega_file, x=omega_file) / (omega_file[-1]**2/2 - omega_file[0]**2/2)
+            def_model = m_1 * w
+            def_model[w == 0] = 1e-5  # Avoid exact zeros
+            return def_model
+        else:
+            def_model = w /16 # factor for scaling (Nt here)
+            def_model = np.maximum(def_model, 1e-5)  # Avoid exact zeros
+            return def_model
     if defmod == "quadratic":
         if file != "":
             data = np.loadtxt(file)
@@ -131,15 +144,15 @@ def get_default_model(
             #def_model[w == 0] = m_0
             return def_model
         else:
-            def_model = w**2
-            def_model = np.maximum(def_model, 1e-10)
+            def_model = w**2 /16 # factor for scaling (Nt here)
+            def_model = np.maximum(def_model, 1e-5)  # Avoid exact zeros
             return def_model
     if defmod == "asakawa":
         m_0 = 0.0257
         return m_0 * w**2
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
-        def_model = w*data[:, 1] # because recsults from unsupervised are rho/w
+        def_model = w*data[:, 1] # because results from unsupervised are rho/w
         return def_model
     raise ValueError("Invalid choice of default model")
 
@@ -236,6 +249,8 @@ class mem:
         for i in range(len(self.alpha)):
             plt.plot(self.w, rho_min[i][:])
         plt.plot(self.w, self.def_model, color = "black", linestyle = "--")
+        plt.xlim(0,1.879)
+        plt.ylim(0,0.3)
         plt.subplot(1,2,2)
         plt.scatter(self.tau, corr, color = "tomato", marker = "x")
         plt.scatter(self.tau, G_rho, color = "cornflowerblue", marker = "x")

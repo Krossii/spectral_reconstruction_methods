@@ -1,7 +1,7 @@
 {
     "Method": "MEM",
-    "alpha_min": -3,
-    "alpha_max": -1,
+    "alpha_min": -2,
+    "alpha_max": 0,
     "alpha_points": 100,
     "default_model": "quadratic",
     "default_model_file": "",
@@ -12,7 +12,7 @@
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../dat/data_wilson_emconduc_48_16_b6.872_B6_x.txt",
+    "correlatorFile": "/mnt/c/Users/chris/OneDrive/Desktop/spectral_reconstruction_methods/dat/data_wilson_emconduc_48_16_b6.872_B6_x.txt",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
