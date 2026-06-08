@@ -757,7 +757,7 @@ class latticedata:
 
         plot_name = plt.figure("compare electric conductivities")
 
-        methods = {"Gaussian":"gaussian","Multipoint":"multipoint","Unsupervised learning":"simran_data", "MEM":"mem", "MEM quadratic":"mem_quadratic"}
+        methods = {"Gaussian":"gaussian","Multipoint":"multipoint","Unsupervised learning":"unsupervised", "MEM":"mem", "MEM quadratic":"mem_quadratic"}
 
         temp = self.set_color_palette_using_keys("Set1",np.arange(9))
         my_palette = dict()
