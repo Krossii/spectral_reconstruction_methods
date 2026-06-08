@@ -1,7 +1,11 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 from plotting import load_unsupervised
+
+
 
 def KL_kernel_Position_Vacuum(
         Position, 
@@ -61,11 +65,6 @@ def read_file_l1(filename):
 def read_file_l2(filename):
     data = np.loadtxt(filename)
     return data[:,2]
-
-def divbyOmega(function, w):
-    if w[0] == 0:
-        w[0]= 1e-10
-    return function/w
 
 class loading:
     def __init__(
@@ -600,12 +599,6 @@ class plotting:
             G_err_gauss,
             ) -> None:
 
-        """rho_input = divbyOmega(rho_input, w)
-        rho_bg = divbyOmega(rho_bg, w)
-        rho_err_bg = divbyOmega(rho_err_bg, w)
-        rho_mem = divbyOmega(rho_mem, w)
-        rho_err_mem = divbyOmega(rho_err_mem, w)"""
-
         omega_gauss = np.linspace(0,2,1000)
         omega=self.w[1:]
         rho_input = rho_input[1:]
@@ -718,85 +711,314 @@ class plotting:
             plt.scatter(spatial_correlators[i], label=f'Omega_max = {i*10}')
         plt.savefig("Spatial_correlator_comparison.jpg")
 
+class latticedata:
+    def __init__(
+            self,
+            Nb: int,
+            direction: str,
+            epsilon: float,
+            Ns: int,
+            Nt: int,
+            ) -> None:
+        self.Nb = Nb
+        self.epsilon = epsilon
+        self.direction = direction
+        self.Ns = Ns
+        self.Nt = Nt
+    
+    def initialize_my_color_setup(
+            self,
+            fraction_of_pagesize, 
+            size_1 = 1,
+            size_2 = 1
+            ) -> None:
+        page_size_in_inches = [size_1*5.3, size_2*5.3] # default 5.3
+        #fraction_of_pagesize = 0.6 # default 0.7
+        plt.rcParams["figure.figsize"] = (fraction_of_pagesize * page_size_in_inches[0], fraction_of_pagesize * page_size_in_inches[1])
+        plt.rcParams["font.size"] = 8
+        plt.rcParams["errorbar.capsize"] = 3 # default 5
+        plt.rcParams["lines.markersize"] = 3 # default 4
+        plt.rcParams["scatter.marker"] = "s" # default "s"
+        plt.rcParams["lines.linewidth"] = 1
+
+    def set_color_palette_using_keys(
+            self,
+            pal,
+            vector
+            ) -> None:
+        color_dict = dict()
+        my_palette = mpl.colormaps[pal]
+        index_vec = np.linspace(0,1,len(vector))
+        return {vector[n]:my_palette(index_vec[n]) for n in range(len(vector))}
+
+    def compare_elec_conduct_different_methods(
+            self,
+            ) -> None:
+
+        plot_name = plt.figure("compare electric conductivities")
+
+        methods = {"Gaussian":"gaussian","Multipoint":"multipoint","Unsupervised learning":"simran_data", "MEM":"mem", "MEM quadratic":"mem_quadratic"}
+
+        temp = self.set_color_palette_using_keys("Set1",np.arange(9))
+        my_palette = dict()
+        my_palette["Gaussian"] = temp[0]
+        my_palette["Multipoint"] = temp[1]
+        my_palette["Unsupervised learning"] = temp[2]
+        my_palette["MEM quadratic"] = temp[7]
+        my_palette["MEM"] = temp[8]
+
+        ax = plt.subplot(111)
+
+        for m in methods.keys():
+            input_file = "../dat/finite_T_reconstructions/%s/econduct_B_%s.dat"%(methods[m],self.direction)
+            if os.path.isfile(input_file):
+                B_vec, conduct_vec, conduct_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+
+                fac = 1./conduct_vec[0]
+
+                B_vec = 6*np.pi*B_vec*self.Nt**2/self.Ns**2
+                conduct_vec = fac * conduct_vec
+                conduct_err = fac * conduct_err
+
+                plt.errorbar(B_vec[1:],conduct_vec[1:],yerr=conduct_err[1:],fmt="s",capsize=4,color=my_palette[m],label="%s"%m)
+
+        #plt.text(0.5, 0.5, "PRELIMINARY", color="green", alpha=0.15,transform=ax.transAxes, fontsize=26,horizontalalignment="center")
+
+        plt.title(r"$48^3\times16$",x=0.15,y=0.58,horizontalalignment="center")
+        plt.legend(loc="upper left")
+        plt.xlabel("$eB/T^2$")
+        plt.ylabel("$\sigma_%s(B)/\sigma_%s(B=0)$"%(self.direction,self.direction))
+        plt.xlim(0,27)
+        plt.ylim(0,5)
+        plt.legend(loc="upper left")
+        plt.subplots_adjust(left=0.17,right=0.99,bottom=0.13,top=0.98)
+
+        plt.savefig("conduct_%s_variousmethods.jpg"%self.direction,dpi=500)
+
+    def compare_spectral_function_different_methods(
+            self,
+            ) -> None:
+
+        plot_name = plt.figure("compare spectral function")
+
+        ax = plt.subplot()
+
+        temp = self.set_color_palette_using_keys("Set1",np.arange(9))
+        my_palette = dict()
+        my_palette["gauss"] = temp[0]
+        my_palette["multi"] = temp[1]
+        my_palette["unsup"] = temp[2]
+        my_palette["mem_const"] = temp[8]
+        my_palette["mem_quad"] = temp[7]
+
+        # Gaussian results
+        input_file = "../gaussian/emconduc_recs/gauss_specf.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+        if os.path.isfile(input_file):
+            w_vec, rho_gaussian, rho_gaussian_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+            plt.fill_between(self.Nt*w_vec,rho_gaussian-rho_gaussian_err,rho_gaussian+rho_gaussian_err,alpha=0.5,color=my_palette["gauss"],edgecolor="black",label="Gaussian")
+
+        # HLT results
+        """
+        input_file = "data/hlt/hlt_specf_eps%.2f.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(epsilon,Nb,direction)
+        if os.path.isfile(input_file):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+            plt.fill_between(Nt*w_vec,rho_vec-rho_err,rho_vec+rho_err,alpha=0.5,color=my_palette["hlt"],edgecolor="black",label=r"HLT (smearing = %.2f)"%epsilon)
+        """
+
+        # MEM results
+        input_file_const = "../mem/outputs/emconduc_recs/constant_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(Nb,direction)
+        input_file_quad = "../mem/outputs/emconduc_recs/quadratic_prior/RhoOverOmega_finite_T_prior_quadratic_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(Nb,direction)
+        
+        
+        if os.path.isfile(input_file_const):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file_const,usecols=(0,1,2),unpack=True)
+            w_mem = w_vec[w_vec <= 1.879]
+            rho_mem = rho_vec[:len(w_mem)]
+            rho_err_mem = rho_err[:len(w_mem)]
+            plt.fill_between(self.Nt*w_mem,rho_mem-rho_err_mem,rho_mem+rho_err_mem,alpha=0.5,color=my_palette["mem_const"],edgecolor="black",label="MEM constant prior")
+        
+        if os.path.isfile(input_file_quad):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file_quad,usecols=(0,1,2),unpack=True)
+            w_mem_quad = w_vec[w_vec <= 1.879]
+            rho_mem_quad = rho_vec[:len(w_mem_quad)]
+            rho_err_mem_quad = rho_err[:len(w_mem_quad)]
+            plt.fill_between(self.Nt*w_mem_quad,rho_mem_quad-rho_err_mem_quad,rho_mem_quad+rho_err_mem_quad,alpha=0.5,color=my_palette["mem_quad"],edgecolor="black",label="MEM quadratic prior")
+
+        # Multipoint results
+        input_file = "../dat/finite_T_reconstructions/multipoint/econduct_B_%s.dat"%self.direction
+        if os.path.isfile(input_file):
+            B_vec, conduct_vec, conduct_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+
+            conduct_dict = {Nb:conduct for Nb,conduct in [*zip(B_vec,conduct_vec)]}
+            conduct_err_dict = {Nb:err for Nb,err in [*zip(B_vec,conduct_err)]}
+
+            plt.errorbar([0],[conduct_dict[self.Nb]],yerr=[conduct_err_dict[self.Nb]],fmt="s",capsize=4,color=my_palette["multi"],label="Multipoint")
+
+        # Unsupervised ML results
+        if self.direction == "x":
+            input_file = "../neuralFit/outputs/emconduc_recs/rhoOomegaB%i_x_delomega02783_pts500.txt"%self.Nb
+        else:
+            input_file = "../neuralFit/outputs/emconduc_recs/rho_over_omega_B%i_z.txt"%self.Nb
+        if os.path.isfile(input_file):
+            w_vec, rho_unsupervised, rho_unsupervised_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+            plt.fill_between(self.Nt*w_vec,rho_unsupervised-rho_unsupervised_err,rho_unsupervised+rho_unsupervised_err,alpha=0.7,color=my_palette["unsup"],edgecolor="black",label=r"Unsupervised learning")
+
+        # Correlator
+        input_file = "../dat/data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+        if os.path.isfile(input_file):
+            tau, corr = np.loadtxt(input_file, usecols = (0,1), unpack=True)
+            corr_sum = sum(corr)
+
+        #plt.text(0.5, 0.5, "PRELIMINARY", color="green", alpha=0.15,transform=ax.transAxes, fontsize=26,horizontalalignment="center")
+        plt.title(r"$48^3\times16$",x=0.15,y=0.62,horizontalalignment="center")
+        plt.legend(loc="upper left")
+        plt.xlabel(r"$\omega/T$")
+        plt.ylabel(r"$\rho(\omega)/\omega$")
+        plt.xlim(-2,35)
+        plt.ylim(0,0.16)
+        plt.legend(loc="upper left")
+        plt.subplots_adjust(left=0.17,right=0.99,bottom=0.13,top=0.98)
+        plt.savefig("spec_func_variousmethods_%s.jpg"%self.direction,dpi=500)
+        plt.close(plot_name)
+
+        def integrate_spatial_correlator(spectral_function, omega_max):
+            for i in range(len(spectral_function)):
+                if self.Nt*w_vec[i] == omega_max:
+                    cutoff_index = i
+                    break
+            else:
+                cutoff_index = len(spectral_function)
+
+            omega_range = np.linspace(0,omega_max, cutoff_index)
+            spatial_correlator = np.trapz(spectral_function[:cutoff_index], x=omega_range)
+            return spatial_correlator
+
+        def compare_spatial_correlators(spectral_function):
+            w_maxes = np.array([10,20,30])
+            spatial_correlators = []
+            for i in range(len(w_maxes)):
+                spatial_correlators.append(integrate_spatial_correlator(spectral_function, w_maxes[i]))
+            print(spatial_correlators)
+            return np.array(spatial_correlators)
+
+        def plot_spatial_correlators(corr_sum, spf_gaussian, spf_unsupervised, spf_mem, spf_mem_quad):
+            print(len(spf_gaussian), len(spf_unsupervised), len(spf_mem), len(spf_mem_quad))
+            spatial_correlators_gaussian = compare_spatial_correlators(spf_gaussian)
+            spatial_correlators_unsupervised = compare_spatial_correlators(spf_unsupervised)
+            spatial_correlators_mem = compare_spatial_correlators(spf_mem)
+            spatial_correlators_mem_quad = compare_spatial_correlators(spf_mem_quad)
+            plt.figure(figsize=(6,5))
+            print(corr_sum)
+            plt.axhline(corr_sum, label="Sum of correlator")
+            plt.scatter([10,20,30], spatial_correlators_gaussian, label="Gaussian", marker = 'x', color=my_palette["gauss"])
+            plt.scatter([10,20,30], spatial_correlators_unsupervised, label="Unsupervised", marker = 'o', color=my_palette["unsup"])
+            plt.scatter([10,20,30], spatial_correlators_mem, label="MEM constant", marker = 's', color=my_palette["mem_const"])
+            plt.scatter([10,20,30], spatial_correlators_mem_quad, label="MEM quadratic", marker = 'd', color=my_palette["mem_quad"])
+            plt.xlabel(r"$\omega_{max}/T$")
+            plt.ylabel(r"$\int_0^{\omega_{max}} \frac{\rho(\omega)}{\omega} d\omega$")
+            plt.title("Spatial correlator as a function of spectral function cutoff")
+            plt.legend()
+            plt.savefig("Spatial_correlator_comparison_B%i_direction_%s.jpg"%(self.Nb,self.direction), dpi=500)
+
+        plot_spatial_correlators(corr_sum, rho_gaussian, rho_unsupervised, rho_mem, rho_mem_quad)
+    
+
 def main():
-    #losshistory = False
-    comparison = True # to be implemented: whether to compare the methods in one plot or just one method at a time
+    """
+    call finite T
+    
 
-    home_path = "/mnt/c/Users/chris/OneDrive/Desktop" # home path to the data, should contain the "mock-data-main" folder with the mock data and the "spectral_reconstruction_methods" folder
-    method = "Unsupervised" # method to load and plot, can be "MEM", "BG", "Gaussian", "Unsupervised" or "Supervised"
-    defmod = "quadratic" # default model for MEM, only relevant if method == "MEM", can be "constant", "quadratic" or "file"
+    """
+    lattice_data = True
+    if lattice_data:
+        latdat = latticedata(6, "x", 0.4, 48, 16)
+        latdat.initialize_my_color_setup(0.6)
 
-    finite_T = False # Finite T or zero T kernel
-    temp = "finite_T" if finite_T else "zero_T"
-    extr_Q = "Rho" # Rho or RhoOverOmega, might differ for different reconstruction methods
+        latdat.compare_elec_conduct_different_methods()
 
-    Nt = 36 # number of points in the temporal direction
+        #compare_spectral_function_different_methods()
 
-    mock_data = True # whether to use mock data or real lattice data
-    noise = [4] # [2,3,4] # noise levels to compare in the plots
-    N_samples = 10 # number of jackknife samples used in the reconstructions
+        plt.show()
 
-    B_field = 12 # only relevant for finite T, finite B dataset
-    direction = "z" # x or z
-    function = "BW"  # functions for th mock data, currently only BW implemented
-    """if losshistory:
-    train_loss_history_data = read_file("/home/Christian/Desktop/spec_rec_methods/supervised_ml/outputs/RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt.trainloss.dat")
-    val_loss_history_data = read_file("/home/Christian/Desktop/spec_rec_methods/supervised_ml/outputs/RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt.valloss.dat")"""
+    else:
+        #losshistory = False
+        comparison = True # to be implemented: whether to compare the methods in one plot or just one method at a time
 
-    if mock_data:
-        # --- load the input data and format the input correlator --- 
-        if extr_Q == "RhoOverOmega":
-            true_spf = read_file_l2(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/exact_spectral_function_{function}.dat")
+        home_path = "/mnt/c/Users/chris/OneDrive/Desktop" # home path to the data, should contain the "mock-data-main" folder with the mock data and the "spectral_reconstruction_methods" folder
+        method = "Unsupervised" # method to load and plot, can be "MEM", "BG", "Gaussian", "Unsupervised" or "Supervised"
+        defmod = "quadratic" # default model for MEM, only relevant if method == "MEM", can be "constant", "quadratic" or "file"
+
+        finite_T = False # Finite T or zero T kernel
+        temp = "finite_T" if finite_T else "zero_T"
+        extr_Q = "Rho" # Rho or RhoOverOmega, might differ for different reconstruction methods
+
+        Nt = 36 # number of points in the temporal direction
+
+        mock_data = True # whether to use mock data or real lattice data
+        noise = [4] # [2,3,4] # noise levels to compare in the plots
+        N_samples = 10 # number of jackknife samples used in the reconstructions
+
+        B_field = 12 # only relevant for finite T, finite B dataset
+        direction = "z" # x or z
+        function = "BW"  # functions for the mock data, currently only BW implemented
+        """if losshistory:
+        train_loss_history_data = read_file("/home/Christian/Desktop/spec_rec_methods/supervised_ml/outputs/RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt.trainloss.dat")
+        val_loss_history_data = read_file("/home/Christian/Desktop/spec_rec_methods/supervised_ml/outputs/RhoOverOmega_mock_BW_Nt16_noise4_rec_s1e-1_l21e-2_b256_conv.txt.valloss.dat")"""
+
+        if mock_data:
+            # --- load the input data and format the input correlator --- 
+            if extr_Q == "RhoOverOmega":
+                true_spf = read_file_l2(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/exact_spectral_function_{function}.dat")
+            else:
+                true_spf = read_file_l1(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/exact_spectral_function_{function}.dat")
+            w = np.loadtxt(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/exact_spectral_function_{function}.dat")
+            if temp == "finite_T": w = w[:,0]/Nt
+            else: w = w[:,0]
+            G_input, G_input_err = np.zeros((len(noise), Nt)), np.zeros((len(noise), Nt))
+            for i in range(len(noise)):
+                G_input_data = np.loadtxt(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
+                tau = G_input_data[:,0]
+                G_input[i][:] = G_input_data[:,1]
+                G_input_err[i][:] = G_input_data[:,2]
+
         else:
-            true_spf = read_file_l1(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/exact_spectral_function_{function}.dat")
-        w = np.loadtxt(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/exact_spectral_function_{function}.dat")
-        if temp == "finite_T": w = w[:,0]/Nt
-        else: w = w[:,0]
-        G_input, G_input_err = np.zeros((len(noise), Nt)), np.zeros((len(noise), Nt))
-        for i in range(len(noise)):
-            G_input_data = np.loadtxt(f"{home_path}/mock-data-main/{temp}/uncorrelated_data/{function}/mock_corr_{function}_Nt{Nt}_noise{noise[i]}.dat")
+            w = np.linspace(0,30,500)
+            true_spf = np.zeros(len(w))
+            G_input, G_input_err = np.zeros(Nt),np.zeros(Nt)
+            G_input_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/dat/data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_{direction}.txt")
             tau = G_input_data[:,0]
-            G_input[i][:] = G_input_data[:,1]
-            G_input_err[i][:] = G_input_data[:,2]
+            G_input = G_input_data[:,1]
+            G_input_err = G_input_data[:,2]
 
-    else:
-        w = np.linspace(0,30,500)
-        true_spf = np.zeros(len(w))
-        G_input, G_input_err = np.zeros(Nt),np.zeros(Nt)
-        G_input_data = np.loadtxt(f"{home_path}/spectral_reconstruction_methods/dat/data_wilson_emconduc_48_{Nt}_b6.872_B{B_field}_{direction}.txt")
-        tau = G_input_data[:,0]
-        G_input = G_input_data[:,1]
-        G_input_err = G_input_data[:,2]
+        ld = loading(w, tau, Nt, finite_T, home_path, mock_data, noise = noise, function = function, N_samples = N_samples)
+        predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = ld.load_call("MEM", extr_Q, defmod)
+        predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = ld.load_call("BG", extr_Q)
+        predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = ld.load_call("Gaussian", extr_Q)
+        predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = ld.load_call("Unsupervised", extr_Q)
 
-    ld = loading(w, tau, Nt, finite_T, home_path, mock_data, noise = noise, function = function, N_samples = N_samples)
-    predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = ld.load_call("MEM", extr_Q, defmod)
-    predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = ld.load_call("BG", extr_Q)
-    predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = ld.load_call("Gaussian", extr_Q)
-    predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = ld.load_call("Unsupervised", extr_Q)
+        plot = plotting(w, tau, extr_Q, finite_T, mock_data, noise = noise, function = function, N_samples = N_samples, B_field = B_field, direction = direction)
 
-    plot = plotting(w, tau, extr_Q, finite_T, mock_data, noise = noise, function = function, N_samples = N_samples, B_field = B_field, direction = direction)
-
-    """if losshistory:
-        plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
-    else:"""
-    if comparison:
-        plot.comparing_mock(true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], predicted_spf_gauss[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], spf_var_gauss[0][:], 
-        G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_gauss[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:], G_output_err_gauss[0][:])
-    else:
-        #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
-        #plotting_MEM(w, true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
-        plot.mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
-
-    if mock_data:
-        if method == "mem":
-            if len(noise) > 1:
-                plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
-            else:
-                plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+        """if losshistory:
+            plotting_spf_loss(true_spf, predicted_spf, train_loss_history_data, val_loss_history_data)
+        else:"""
+        if comparison:
+            plot.comparing_mock(true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], predicted_spf_gauss[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], spf_var_gauss[0][:], 
+            G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_gauss[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:], G_output_err_gauss[0][:])
         else:
-            if comparison:
-                plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
+            #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
+            #plotting_MEM(w, true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+            plot.mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+
+        if mock_data:
+            if method == "mem":
+                if len(noise) > 1:
+                    plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
+                else:
+                    plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
             else:
-                plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
-    else:
-        plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
+                if comparison:
+                    plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
+                else:
+                    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+        else:
+            plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
