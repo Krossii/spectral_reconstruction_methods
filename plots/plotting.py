@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from plotting import load_unsupervised
-
 
 
 def KL_kernel_Position_Vacuum(
@@ -757,7 +755,14 @@ class latticedata:
 
         plot_name = plt.figure("compare electric conductivities")
 
-        methods = {"Gaussian":"gaussian","Multipoint":"multipoint","Unsupervised learning":"unsupervised", "MEM":"mem", "MEM quadratic":"mem_quadratic"}
+        methods = {
+            "Gaussian":"gaussian",
+            "Multipoint":"multipoint",
+            "Unsupervised learning":"unsupervised", 
+            "MEM constant 1e-2":"mem_constant_1e-2", 
+            "MEM constant 3e-2":"mem_constant_3e-2",
+            "MEM quadratic":"mem_quadratic", 
+            "MEM linear":"mem_linear"}
 
         temp = self.set_color_palette_using_keys("Set1",np.arange(9))
         my_palette = dict()
@@ -765,7 +770,9 @@ class latticedata:
         my_palette["Multipoint"] = temp[1]
         my_palette["Unsupervised learning"] = temp[2]
         my_palette["MEM quadratic"] = temp[7]
-        my_palette["MEM"] = temp[8]
+        my_palette["MEM constant 1e-2"] = temp[8]
+        my_palette["MEM linear"] = temp[6]
+        my_palette["MEM constant 3e-2"] = temp[5]
 
         ax = plt.subplot(111)
 
@@ -784,7 +791,7 @@ class latticedata:
 
         #plt.text(0.5, 0.5, "PRELIMINARY", color="green", alpha=0.15,transform=ax.transAxes, fontsize=26,horizontalalignment="center")
 
-        plt.title(r"$48^3\times16$",x=0.15,y=0.58,horizontalalignment="center")
+        #plt.title(r"$48^3\times16$",x=0.15,y=0.58,horizontalalignment="center")
         plt.legend(loc="upper left")
         plt.xlabel("$eB/T^2$")
         plt.ylabel("$\sigma_%s(B)/\sigma_%s(B=0)$"%(self.direction,self.direction))
@@ -808,8 +815,10 @@ class latticedata:
         my_palette["gauss"] = temp[0]
         my_palette["multi"] = temp[1]
         my_palette["unsup"] = temp[2]
-        my_palette["mem_const"] = temp[8]
+        my_palette["mem_const_1e-2"] = temp[8]
+        my_palette["mem_const_3e-2"] = temp[5]
         my_palette["mem_quad"] = temp[7]
+        my_palette["mem_lin"] = temp[6]
 
         # Gaussian results
         input_file = "../gaussian/emconduc_recs/gauss_specf.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
@@ -826,23 +835,42 @@ class latticedata:
         """
 
         # MEM results
-        input_file_const = "../mem/outputs/emconduc_recs/constant_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(Nb,direction)
-        input_file_quad = "../mem/outputs/emconduc_recs/quadratic_prior/RhoOverOmega_finite_T_prior_quadratic_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(Nb,direction)
+        input_file_1e2_const = "../mem/outputs/emconduc_recs/constant_1e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+        input_file_3e2_const = "../mem/outputs/emconduc_recs/constant_3e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+        input_file_quad = "../mem/outputs/emconduc_recs/quadratic_prior/RhoOverOmega_finite_T_prior_quadratic_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+        input_file_lin = "../mem/outputs/emconduc_recs/linear_prior/RhoOverOmega_finite_T_prior_linear_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
         
-        
-        if os.path.isfile(input_file_const):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file_const,usecols=(0,1,2),unpack=True)
+        # MEM const 1e-2 results        
+        if os.path.isfile(input_file_1e2_const):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file_1e2_const,usecols=(0,1,2),unpack=True)
             w_mem = w_vec[w_vec <= 1.879]
-            rho_mem = rho_vec[:len(w_mem)]
-            rho_err_mem = rho_err[:len(w_mem)]
-            plt.fill_between(self.Nt*w_mem,rho_mem-rho_err_mem,rho_mem+rho_err_mem,alpha=0.5,color=my_palette["mem_const"],edgecolor="black",label="MEM constant prior")
+            rho_mem_1e2 = rho_vec[:len(w_mem)]
+            rho_err_mem_1e2 = rho_err[:len(w_mem)]
+            plt.fill_between(self.Nt*w_mem,rho_mem_1e2-rho_err_mem_1e2,rho_mem_1e2+rho_err_mem_1e2,alpha=0.5,color=my_palette["mem_const_1e-2"],edgecolor="black",label="MEM 1e-2 const prior")
         
+        # MEM const 3e-2 results
+        if os.path.isfile(input_file_3e2_const):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file_3e2_const,usecols=(0,1,2),unpack=True)
+            w_mem = w_vec[w_vec <= 1.879]
+            rho_mem_3e2 = rho_vec[:len(w_mem)]
+            rho_err_mem_3e2 = rho_err[:len(w_mem)]
+            plt.fill_between(self.Nt*w_mem,rho_mem_3e2-rho_err_mem_3e2,rho_mem_3e2+rho_err_mem_3e2,alpha=0.5,color=my_palette["mem_const_3e-2"],edgecolor="black",label="MEM 3e-2 const prior")
+        
+        # MEM quadratic results
         if os.path.isfile(input_file_quad):
             w_vec, rho_vec, rho_err = np.loadtxt(input_file_quad,usecols=(0,1,2),unpack=True)
             w_mem_quad = w_vec[w_vec <= 1.879]
             rho_mem_quad = rho_vec[:len(w_mem_quad)]
             rho_err_mem_quad = rho_err[:len(w_mem_quad)]
             plt.fill_between(self.Nt*w_mem_quad,rho_mem_quad-rho_err_mem_quad,rho_mem_quad+rho_err_mem_quad,alpha=0.5,color=my_palette["mem_quad"],edgecolor="black",label="MEM quadratic prior")
+
+        # MEM linear results
+        if os.path.isfile(input_file_lin):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file_lin,usecols=(0,1,2),unpack=True)
+            w_mem_lin = w_vec[w_vec <= 1.879]
+            rho_mem_lin = rho_vec[:len(w_mem_lin)]
+            rho_err_mem_lin = rho_err[:len(w_mem_lin)]
+            plt.fill_between(self.Nt*w_mem_lin,rho_mem_lin-rho_err_mem_lin,rho_mem_lin+rho_err_mem_lin,alpha=0.5,color=my_palette["mem_lin"],edgecolor="black",label="MEM linear prior")
 
         # Multipoint results
         input_file = "../dat/finite_T_reconstructions/multipoint/econduct_B_%s.dat"%self.direction
@@ -870,7 +898,7 @@ class latticedata:
             corr_sum = sum(corr)
 
         #plt.text(0.5, 0.5, "PRELIMINARY", color="green", alpha=0.15,transform=ax.transAxes, fontsize=26,horizontalalignment="center")
-        plt.title(r"$48^3\times16$",x=0.15,y=0.62,horizontalalignment="center")
+        #plt.title(r"$48^3\times16$",x=0.15,y=0.62,horizontalalignment="center")
         plt.legend(loc="upper left")
         plt.xlabel(r"$\omega/T$")
         plt.ylabel(r"$\rho(\omega)/\omega$")
@@ -881,7 +909,10 @@ class latticedata:
         plt.savefig("spec_func_variousmethods_%s.jpg"%self.direction,dpi=500)
         plt.close(plot_name)
 
-        def integrate_spatial_correlator(spectral_function, omega_max):
+        def integrate_spatial_correlator(
+                spectral_function, 
+                omega_max
+                ):
             for i in range(len(spectral_function)):
                 if self.Nt*w_vec[i] == omega_max:
                     cutoff_index = i
@@ -893,7 +924,9 @@ class latticedata:
             spatial_correlator = np.trapz(spectral_function[:cutoff_index], x=omega_range)
             return spatial_correlator
 
-        def compare_spatial_correlators(spectral_function):
+        def compare_spatial_correlators(
+                spectral_function
+                ):
             w_maxes = np.array([10,20,30])
             spatial_correlators = []
             for i in range(len(w_maxes)):
@@ -901,42 +934,50 @@ class latticedata:
             print(spatial_correlators)
             return np.array(spatial_correlators)
 
-        def plot_spatial_correlators(corr_sum, spf_gaussian, spf_unsupervised, spf_mem, spf_mem_quad):
-            print(len(spf_gaussian), len(spf_unsupervised), len(spf_mem), len(spf_mem_quad))
+        def plot_spatial_correlators(
+                corr_sum, 
+                spf_gaussian, 
+                spf_unsupervised, 
+                spf_mem_1e2, 
+                spf_mem_3e2, 
+                spf_mem_quad, 
+                spf_mem_lin
+                ):
+            print(len(spf_gaussian), len(spf_unsupervised), len(spf_mem_1e2), len(spf_mem_3e2), len(spf_mem_quad), len(spf_mem_lin))
             spatial_correlators_gaussian = compare_spatial_correlators(spf_gaussian)
             spatial_correlators_unsupervised = compare_spatial_correlators(spf_unsupervised)
-            spatial_correlators_mem = compare_spatial_correlators(spf_mem)
+            spatial_correlators_mem_1e2 = compare_spatial_correlators(spf_mem_1e2)
+            spatial_correlators_mem_3e2 = compare_spatial_correlators(spf_mem_3e2)
             spatial_correlators_mem_quad = compare_spatial_correlators(spf_mem_quad)
+            spatial_correlators_mem_lin = compare_spatial_correlators(spf_mem_lin)
             plt.figure(figsize=(6,5))
             print(corr_sum)
             plt.axhline(corr_sum, label="Sum of correlator")
             plt.scatter([10,20,30], spatial_correlators_gaussian, label="Gaussian", marker = 'x', color=my_palette["gauss"])
             plt.scatter([10,20,30], spatial_correlators_unsupervised, label="Unsupervised", marker = 'o', color=my_palette["unsup"])
-            plt.scatter([10,20,30], spatial_correlators_mem, label="MEM constant", marker = 's', color=my_palette["mem_const"])
+            plt.scatter([10,20,30], spatial_correlators_mem_1e2, label="MEM 1e-2 constant", marker = 's', color=my_palette["mem_const_1e-2"])
+            plt.scatter([10,20,30], spatial_correlators_mem_3e2, label="MEM 3e-2 constant", marker = 's', color=my_palette["mem_const_3e-2"])
             plt.scatter([10,20,30], spatial_correlators_mem_quad, label="MEM quadratic", marker = 'd', color=my_palette["mem_quad"])
+            plt.scatter([10,20,30], spatial_correlators_mem_lin, label="MEM linear", marker = '>', color=my_palette["mem_lin"])
             plt.xlabel(r"$\omega_{max}/T$")
             plt.ylabel(r"$\int_0^{\omega_{max}} \frac{\rho(\omega)}{\omega} d\omega$")
             plt.title("Spatial correlator as a function of spectral function cutoff")
             plt.legend()
             plt.savefig("Spatial_correlator_comparison_B%i_direction_%s.jpg"%(self.Nb,self.direction), dpi=500)
 
-        plot_spatial_correlators(corr_sum, rho_gaussian, rho_unsupervised, rho_mem, rho_mem_quad)
+        #plot_spatial_correlators(corr_sum, rho_gaussian, rho_unsupervised, rho_mem_1e2, rho_mem_3e2, rho_mem_quad, rho_mem_lin)
     
 
 def main():
-    """
-    call finite T
-    
-
-    """
     lattice_data = True
+
     if lattice_data:
-        latdat = latticedata(6, "x", 0.4, 48, 16)
+        latdat = latticedata(6, "z", 0.4, 48, 16)
         latdat.initialize_my_color_setup(0.6)
 
         latdat.compare_elec_conduct_different_methods()
 
-        #compare_spectral_function_different_methods()
+        latdat.compare_spectral_function_different_methods()
 
         plt.show()
 
@@ -1022,3 +1063,6 @@ def main():
                     plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
         else:
             plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
+
+if __name__ == "__main__":
+    main()

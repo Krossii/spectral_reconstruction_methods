@@ -120,6 +120,9 @@ The following parameters can be specified in the JSON file or as command line ar
 | **alpha_points**        | `64`              | Any float                         | Specific to `"MEM"`: The number of points in the alpha range |
 | **default_model**        | `"constant"`              | `"constant"`,`"quadratic"`,`"exact"`, `"file"`              | Specific to `"MEM"`: The default model to be used. The values should be in the second column. |
 | **default_model_file**        | `""`              | Any string path              | Specific to `"MEM"`: The file path to the default model. |
+| **precision**        | `"20"`              | Any integer              | Specific to `"HLT"`: The numerical precision for the mpmath library used in the HLT implementation |
+| **lambda**        | `"0"`              | Any float              | Specific to `"HLT"`: The lambda parameter controlling the reconstruction of HLT. |
+| **smearing**        | `"0.3"`              | Any float              | Specific to `"HLT"`: The smearing parameter controlling the smearing of the kernel used in HLT. |
 | **omega_min**        | `0`              | Any float                         | The lower bound of the frequency range (in lattice units) |
 | **omega_max**        | `10`             | Any float                         | The upper bound of the frequency range (in lattice units) |
 | **omega_points**     | `500`            | Any integer                       | The number of points in the frequency range |
@@ -172,6 +175,9 @@ Create a JSON file (e.g., `params.json`):
     "alpha_points": 64,
     "default_model": "exact",
     "default_model_file": "",
+    "precision": 20,
+    "lamb": 0,
+    "smearing": 0.3,
     "omega_min": 0,
     "omega_max": 5,
     "omega_points": 500,
@@ -211,7 +217,6 @@ python reconstruction.py --config params.json --lambda_s 1e-6 --lambda_l2 1e-4 -
 The following issues are known and still need to be fixed/read through.
 - supervised appears to be running now on a very ideal dataset. Still one should check a histogram of the weights to see if there are unused neurons 
 
-- I experienced some issues with my compiler crashing while running supervised learning for about 3000-5000 epochs. It might be useful to check this on a different machine to see if this issue persists.
 - I added a small wrapper for the raytune library - this is not finished though
 - gpr fails due due to a matrix which is not positive definite (idk how to fix this)
 
@@ -223,7 +228,5 @@ The following non-standard libraries are needed to run the program:
 - `scipy` (general applications)
 - `tensorflow` (for machine learning)
 - `fredipy` (for the Gaussian method)
-
-### Hints on the installation of TensorFlow
-
-https://www.tensorflow.org/install
+- `mpmath` (for the HLT method)
+Of course these only need to be installed when using the respective reconstruction methods.

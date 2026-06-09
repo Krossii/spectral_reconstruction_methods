@@ -9,6 +9,12 @@ from mpmath import *
 from numpy import loadtxt
 import numpy as np
 
+import pprint
+import argparse
+import json
+import os
+from typing import List, Tuple, Callable
+
 mp.pretty = True
 
 class HansenLupoTantalo:
@@ -213,21 +219,196 @@ class HansenLupoTantalo:
             smearing_func = fdot(self.q_vec,kernel_vec)
             target = self.target_smearing_function(w_star,w)
             output_file.write("%.6e\t%.6e\t%.6e\n"%(w_star,target,smearing_func))
+
+class ParameterHandler:
+    def __init__(
+            self, 
+            paramsDefaultDict: dict
+            ):
+        self.allowed_params = paramsDefaultDict.keys()
+        self.params = paramsDefaultDict
+        
+    def load_from_json(
+            self, 
+            config_path: str
+            ) -> None:
+        if config_path:
+            with open(config_path, 'r') as f:
+                data = json.load(f)
+            for name in self.allowed_params:
+                if name in data:
+                    self.params[name] = data[name]
+
+    def override_with_args(
+            self, 
+            args: argparse.Namespace
+            ) -> None:
+        for name in self.allowed_params:
+            val = getattr(args, name, None)
+            if val is not None:
+                self.params[name] = val
+
+    def check_parameters(
+            self
+            ) -> None:
+        for name in self.allowed_params:
+            if name == "outputFile" and self.params[name] is None:
+                continue
+            if name not in self.params or self.params[name] is None:
+                raise ValueError(f"Parameter '{name}' is not set.")
+
+    def load_params(
+            self, 
+            config_path: str, 
+            args: argparse.Namespace
+            ) -> None:
+        self.load_from_json(config_path)
+        self.override_with_args(args)
+        self.check_parameters()
+
+    def get_params(
+            self
+            ) -> dict:
+        return self.params
+    
+    def get_extractedQuantity(
+            self
+            ) -> str:
+        return self.params["extractedQuantity"]
+    
+    def get_correlator_file(
+            self
+            ) -> str:
+        return os.path.abspath(self.params["correlatorFile"])
+
+    def get_verbose(
+            self
+            ) -> bool:
+        return self.params["verbose"]
+    
+    def get_correlator_cols(
+            self
+            ) -> List[int]:
+        correlator_cols = self.params["correlatorCols"]
+        if isinstance(correlator_cols, list):
+            return correlator_cols
+        if isinstance(correlator_cols, int):
+            return [correlator_cols]
+        if isinstance(correlator_cols, str) and ':' in correlator_cols:
+            start_str, end_str = correlator_cols.split(':')
+            start = int(start_str) if start_str else None
+            end = int(end_str) if end_str else None
+            return list(range(start if start is not None else 0, end + 1 if end is not None else len(np.loadtxt(self.params["correlatorFile"], max_rows=1))))
+        if isinstance(correlator_cols, str) and correlator_cols.isdigit():
+            return [int(correlator_cols)]
+        if not correlator_cols:
+            return []
+        raise ValueError("correlator_cols must be an integer index, list of indices, or a string with a range (e.g., '6:10', '6:', ':10', ':').")
+
+def initializeArgumentParser(
+        paramsDefaultDict: dict
+        ) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="mem",
+        description="Fit spectral functions toprovided correlator with the Maximum Entropy Method."
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=False,
+        default="",
+        help="Path to JSON configuration file"
+    )
+    
+    for name, default in paramsDefaultDict.items():
+        typeArg=type(default)
+        typeString=typeArg.__name__
+        if typeArg==list:
+            nargsArg='+'
+            typeArg=type(default[0])
+            typeString=f"List of {typeArg.__name__}"
+        else:
+            nargsArg=None
+        parser.add_argument(
+            f"--{name}",
+            type=typeArg,
+            nargs=nargsArg,
+            # default=default,
+            help=f"Value for parameter '{name}'"
+        )
+    return parser
+
 #
 #==============================================================================
 # Main
 #==============================================================================
 #
-if __name__ == "__main__":
-    mp.dps = 20 # Precision
 
-    w_vec = list([float(i) for i in np.linspace(0,2,20)])
+def main(
+        paramsDefaultDict
+        ):
+    parser=initializeArgumentParser(paramsDefaultDict)
+    args = parser.parse_args()
+    parameterHandler = ParameterHandler(paramsDefaultDict)
+    parameterHandler.load_params(args.config,args)
 
-    hlt = HansenLupoTantalo(0,0.3) # 1st = lambda, 2nd = smearing
-    hlt.read_lattice_data("mock_data/mock_corr_BW_Nt16_noise99.dat")
+    if parameterHandler.get_verbose():
+        print("*"*40)
+        print("Running fits with the following parameters:")
+        pprint.pprint(parameterHandler.get_params())
 
-    hlt.KernelType = "finite_T"
+    
+    mp.dps = parameterHandler.get_params()["precision"] # Precision
+
+    w_vec = list([float(i) for i in np.linspace(
+        parameterHandler.get_params()["omega_min"], 
+        parameterHandler.get_params()["omega_max"], 
+        parameterHandler.get_params()["omega_points"])])
+
+    hlt = HansenLupoTantalo(
+        parameterHandler.get_params()["lamb"], 
+        parameterHandler.get_params()["smearing"]) # 1st = lambda, 2nd = smearing
+    
+    hlt.read_lattice_data(parameterHandler.get_params()["correlatorFile"])
+
+    if parameterHandler.get_params()["FiniteT_kernel"]:
+        hlt.KernelType = "finite_T"
+    else:
+        hlt.KernelType = "zero"
 
     hlt.solve(w_vec)
 
     hlt.save_output_data(w_vec)
+    
+
+paramsDefaultDict = {
+    "Method": "HLT",
+    #HLT specific; precision, lambda, smearing
+    "precision": 20,
+    "lamb": 0,
+    "smearing": 0.3,
+    #Correlator/Rho params
+    "omega_min": 0,
+    "omega_max": 10,
+    "omega_points": 500,
+    "Nt": 0,
+    "extractedQuantity": "RhoOverOmega",
+    "FiniteT_kernel": True,
+    "multiFit": False,
+    "correlatorFile": "",
+    "xCol": 0,
+    "meanCol": 1,
+    "errorCol": 2,
+    "correlatorCols": "3:",
+    "errormethod": "jackknife",
+    #General Params
+    "saveParams": False,
+    "verbose": False,
+    "outputFile": "",
+    "outputDir": ""
+}
+
+
+
+if __name__ == "__main__":
+    main(paramsDefaultDict)

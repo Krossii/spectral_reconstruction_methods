@@ -119,7 +119,7 @@ def get_default_model(
             #else:
             return np.ones(len(w)) * m_0
         else:
-            return np.ones(len(w)) * 1e-2
+            return np.ones(len(w)) * 3e-2 #1e-2
     if defmod == "linear":
         if file != "":
             data = np.loadtxt(file)
@@ -1086,7 +1086,6 @@ paramsDefaultDict = {
     "verbose": False,
     "outputFile": "",
     "outputDir": ""
-
 }
 
 

@@ -8,3 +8,6 @@ supervised_ml/KadesFC*
 quick_plot.py
 supervised_ml/debug*
 params.json
+__pycache__/*
+__pycache__/
+*.pyc

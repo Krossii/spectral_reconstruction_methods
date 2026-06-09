@@ -114,7 +114,7 @@ class ParameterHandler:
                 "Method", "batch_size", "create_data","data_noise", "trainingFile", 
                 "validationFile", "optimizer", "variance", "model_file",
                 "lengthscale", "alpha_min", "alpha_max",
-                "alpha_points", "default_model","eval_model", "default_model_file"
+                "alpha_points", "default_model","eval_model", "default_model_file", "precision", "lamb", "smearing"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = "SpectralNN"
@@ -127,7 +127,7 @@ class ParameterHandler:
             black_list_vals = set((
                 "Method", "width", "create_data","data_noise", "optimizer",
                 "variance", "lengthscale", "alpha_min", "alpha_max",
-                "alpha_points", "default_model", "multiFit", "default_model_file",
+                "alpha_points", "default_model", "multiFit", "default_model_file", "precision", "lamb", "smearing"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             cleaned_dict["networkStructure"] = self.params["Method"]
@@ -142,7 +142,7 @@ class ParameterHandler:
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "alpha_min", "alpha_max",
-                "alpha_points", "default_model", "default_model_file"
+                "alpha_points", "default_model", "default_model_file", "precision", "lamb", "smearing"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             subpath = "gaussian/params.json"
@@ -155,10 +155,24 @@ class ParameterHandler:
                 "lambda_s", "lambda_l2", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
-                "saveLossHistory", "optimizer", "variance", "lengthscale"
+                "saveLossHistory", "optimizer", "variance", "lengthscale", "precision", "lamb", "smearing"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
             subpath = "mem/params.json"
+            if self.get_params()["cluster"]:
+                subpath = os.path.join(cluster_path, subpath)
+            with open(subpath, "w") as f:
+                json.dump(cleaned_dict, f, indent=4)
+        if self.params["Method"] == "HLT":
+            black_list_vals = set((
+                "lambda_s", "lambda_l2", "epochs","eval_model",
+                "learning_rate", "errorWeighting", "width", "model_file",
+                "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
+                "saveLossHistory", "optimizer", "variance", "lengthscale","alpha_min", "alpha_max",
+                "alpha_points", "default_model", "default_model_file"
+                ))
+            cleaned_dict = self.get_blacklisted_dict(black_list_vals)
+            subpath = "hlt/params.json"
             if self.get_params()["cluster"]:
                 subpath = os.path.join(cluster_path, subpath)
             with open(subpath, "w") as f:
@@ -219,6 +233,13 @@ def call_method_programs(
         else:
             working_dir = "mem/"
         subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd=working_dir).communicate()
+    
+    if parameterHandler.get_params()["Method"] == "HLT":
+        if parameterHandler.get_params()["cluster"]:
+            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "hlt/")
+        else:
+            working_dir = "hlt/"
+        subprocess.Popen(["python", "hlt.py", "--config", "params.json"], cwd=working_dir).communicate()
 
 def main(
         paramsDefaultDict
@@ -262,6 +283,10 @@ paramsDefaultDict = {
     "alpha_points": 64,
     "default_model": "constant",
     "default_model_file": "",
+    #HLT specific
+    "precision": 20,
+    "lamb": 0,
+    "smearing": 0.3,
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,
