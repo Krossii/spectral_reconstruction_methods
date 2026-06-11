@@ -972,7 +972,7 @@ def main():
     lattice_data = True
 
     if lattice_data:
-        latdat = latticedata(6, "z", 0.4, 48, 16)
+        latdat = latticedata(6, "x", 0.4, 48, 16)
         latdat.initialize_my_color_setup(0.6)
 
         latdat.compare_elec_conduct_different_methods()
