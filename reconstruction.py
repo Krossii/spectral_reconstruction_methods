@@ -125,7 +125,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "SupervisedNN" or self.params["Method"] == "KadesFC" or self.params["Method"] == "KadesConv":
             black_list_vals = set((
-                "Method", "width", "create_data","data_noise", "optimizer",
+                "Method", "width","saveWeightHistograms", "create_data","data_noise", "optimizer",
                 "variance", "lengthscale", "alpha_min", "alpha_max",
                 "alpha_points", "default_model", "multiFit", "default_model_file", "precision", "lamb", "smearing"
                 ))
@@ -138,7 +138,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "Gaussian":
             black_list_vals = set((
-                "lambda_s", "lambda_l2", "epochs","eval_model",
+                "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "alpha_min", "alpha_max",
@@ -152,7 +152,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "MEM":
             black_list_vals = set((
-                "lambda_s", "lambda_l2", "epochs","eval_model",
+                "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "optimizer", "variance", "lengthscale", "precision", "lamb", "smearing"
@@ -165,7 +165,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "HLT":
             black_list_vals = set((
-                "lambda_s", "lambda_l2", "epochs","eval_model",
+                "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
                 "saveLossHistory", "optimizer", "variance", "lengthscale","alpha_min", "alpha_max",
@@ -211,7 +211,7 @@ def call_method_programs(
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "neuralFit/")
         else:
             working_dir = "neuralFit/"
-        subprocess.Popen(["python", "neuralFit.py", "--config", "params.json"], cwd=working_dir).communicate()
+        subprocess.Popen(["python", "neuralFitv2.py", "--config", "params.json"], cwd=working_dir).communicate()
 
     if parameterHandler.get_params()["Method"] == "SupervisedNN" or parameterHandler.get_params()["Method"] == "KadesFC" or parameterHandler.get_params()["Method"] == "KadesConv":
         if parameterHandler.get_params()["cluster"]:
@@ -265,6 +265,7 @@ paramsDefaultDict = {
     "saveLossHistory": False,
     #Unsupervised specific
     "width": [32,32,32],
+    "saveWeightHistograms": False,
     #Supervised specific
     "batch_size": 128,
     "create_data": False,

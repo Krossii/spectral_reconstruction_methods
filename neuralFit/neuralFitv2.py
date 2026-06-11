@@ -467,10 +467,12 @@ class FitRunner:
         )
         
         omega_min = self.parameterHandler.get_params()["omega_min"]
-        del_omega = self.parameterHandler.get_params()["del_omega"]
+        #del_omega = self.parameterHandler.get_params()["del_omega"]
+        omega_max = self.parameterHandler.get_params()["omega_max"]
         omega_points = self.parameterHandler.get_params()["omega_points"]
     
-        self.omega = omega_min + del_omega * np.arange(omega_points, dtype=float)
+        #self.omega = omega_min + del_omega * np.arange(omega_points, dtype=float)
+        self.omega = np.linspace(omega_min, omega_max, omega_points)
 
         self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
         self.verbose = self.parameterHandler.get_verbose()
@@ -625,7 +627,8 @@ paramsDefaultDict = {
     "networkStructure": "SpectralNN",
     #Correlator/Rho params
     "omega_min": 0,
-    "del_omega": 0.004008,
+    "omega_max": 2.004,
+    #"del_omega": 0.004008,
     "omega_points": 500,
     "Nt": 0,
     "extractedQuantity": "RhoOverOmega",

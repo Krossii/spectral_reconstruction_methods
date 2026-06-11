@@ -105,6 +105,7 @@ The following parameters can be specified in the JSON file or as command line ar
 | **learning_rate**    | `[1e-4]`         | Any float or list of floats               | Learning rate, if list of floats and `"SupervisedNN"`, a polynomial rearning rate scheduler is used. The syntax should then be `[lr_start, lr_end, epoch]` where epoch is an integer where the learning rate should freeze at the end value. |
 | **errorWeighting**   | `True`           | `True`, `False`                   | Use error weighting for the correlator loss |
 | **width**            | `[32, 32, 32]`   | List of integers                  | Specific to `"UnsupervisedNN"`: Structure of the neural network. The length of the list sets the number of layers, while the values set the widths of the layers.  |
+| **saveWeightHistograms**            | `False`   | `True`, `False`                  | Specific to `"UnsupervisedNN"`: Whether to save the weight histogram or not.  |
 | **batch_size**        | `128`              | Any integer                         | Specific to `"SupervisedNN"`: The batch size for the training and validation sets. |
 | **create_data**        | `False`              | `True`,`False`                        | Specific to `"SupervisedNN"`: Wether to create new training and validation sets |
 | **data_noise**        | `10e-5`              | Any float                         | Specific to `"SupervisedNN"`: The noise on the created data. |
