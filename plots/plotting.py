@@ -762,7 +762,8 @@ class latticedata:
             "MEM constant 1e-2":"mem_constant_1e-2", 
             "MEM constant 3e-2":"mem_constant_3e-2",
             "MEM quadratic":"mem_quadratic", 
-            "MEM linear":"mem_linear"}
+            "MEM linear":"mem_linear",
+            "MEM neural":"mem_neural"}
 
         temp = self.set_color_palette_using_keys("Set1",np.arange(9))
         my_palette = dict()
@@ -773,6 +774,7 @@ class latticedata:
         my_palette["MEM constant 1e-2"] = temp[8]
         my_palette["MEM linear"] = temp[6]
         my_palette["MEM constant 3e-2"] = temp[5]
+        my_palette["MEM neural"] = temp[4]
 
         ax = plt.subplot(111)
 
@@ -819,6 +821,7 @@ class latticedata:
         my_palette["mem_const_3e-2"] = temp[5]
         my_palette["mem_quad"] = temp[7]
         my_palette["mem_lin"] = temp[6]
+        my_palette["mem_neural"] = temp[4]
 
         # Gaussian results
         input_file = "../gaussian/emconduc_recs/gauss_specf.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
@@ -839,6 +842,7 @@ class latticedata:
         input_file_3e2_const = "../mem/outputs/emconduc_recs/constant_3e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
         input_file_quad = "../mem/outputs/emconduc_recs/quadratic_prior/RhoOverOmega_finite_T_prior_quadratic_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
         input_file_lin = "../mem/outputs/emconduc_recs/linear_prior/RhoOverOmega_finite_T_prior_linear_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+        input_file_neural = "../mem/outputs/emconduc_recs/neural_prior/RhoOverOmega_finite_T_prior_file_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
         
         # MEM const 1e-2 results        
         if os.path.isfile(input_file_1e2_const):
@@ -871,6 +875,14 @@ class latticedata:
             rho_mem_lin = rho_vec[:len(w_mem_lin)]
             rho_err_mem_lin = rho_err[:len(w_mem_lin)]
             plt.fill_between(self.Nt*w_mem_lin,rho_mem_lin-rho_err_mem_lin,rho_mem_lin+rho_err_mem_lin,alpha=0.5,color=my_palette["mem_lin"],edgecolor="black",label="MEM linear prior")
+
+        # MEM neural results
+        if os.path.isfile(input_file_neural):
+            w_vec, rho_vec, rho_err = np.loadtxt(input_file_neural,usecols=(0,1,2),unpack=True)
+            w_mem_neural = w_vec[w_vec <= 1.879]
+            rho_mem_neural = rho_vec[:len(w_mem_neural)]
+            rho_err_mem_neural = rho_err[:len(w_mem_neural)]
+            plt.fill_between(self.Nt*w_mem_neural,rho_mem_neural-rho_err_mem_neural,rho_mem_neural+rho_err_mem_neural,alpha=0.5,color=my_palette["mem_neural"],edgecolor="black",label="MEM neural prior")
 
         # Multipoint results
         input_file = "../dat/finite_T_reconstructions/multipoint/econduct_B_%s.dat"%self.direction
@@ -941,15 +953,17 @@ class latticedata:
                 spf_mem_1e2, 
                 spf_mem_3e2, 
                 spf_mem_quad, 
-                spf_mem_lin
+                spf_mem_lin,
+                spf_mem_neural
                 ):
-            print(len(spf_gaussian), len(spf_unsupervised), len(spf_mem_1e2), len(spf_mem_3e2), len(spf_mem_quad), len(spf_mem_lin))
+            print(len(spf_gaussian), len(spf_unsupervised), len(spf_mem_1e2), len(spf_mem_3e2), len(spf_mem_quad), len(spf_mem_lin), len(spf_mem_neural))
             spatial_correlators_gaussian = compare_spatial_correlators(spf_gaussian)
             spatial_correlators_unsupervised = compare_spatial_correlators(spf_unsupervised)
             spatial_correlators_mem_1e2 = compare_spatial_correlators(spf_mem_1e2)
             spatial_correlators_mem_3e2 = compare_spatial_correlators(spf_mem_3e2)
             spatial_correlators_mem_quad = compare_spatial_correlators(spf_mem_quad)
             spatial_correlators_mem_lin = compare_spatial_correlators(spf_mem_lin)
+            spatial_correlators_mem_neural = compare_spatial_correlators(spf_mem_neural)
             plt.figure(figsize=(6,5))
             print(corr_sum)
             plt.axhline(corr_sum, label="Sum of correlator")
@@ -959,23 +973,24 @@ class latticedata:
             plt.scatter([10,20,30], spatial_correlators_mem_3e2, label="MEM 3e-2 constant", marker = 's', color=my_palette["mem_const_3e-2"])
             plt.scatter([10,20,30], spatial_correlators_mem_quad, label="MEM quadratic", marker = 'd', color=my_palette["mem_quad"])
             plt.scatter([10,20,30], spatial_correlators_mem_lin, label="MEM linear", marker = '>', color=my_palette["mem_lin"])
+            plt.scatter([10,20,30], spatial_correlators_mem_neural, label="MEM neural", marker = '<', color=my_palette["mem_neural"])
             plt.xlabel(r"$\omega_{max}/T$")
             plt.ylabel(r"$\int_0^{\omega_{max}} \frac{\rho(\omega)}{\omega} d\omega$")
             plt.title("Spatial correlator as a function of spectral function cutoff")
             plt.legend()
             plt.savefig("Spatial_correlator_comparison_B%i_direction_%s.jpg"%(self.Nb,self.direction), dpi=500)
 
-        #plot_spatial_correlators(corr_sum, rho_gaussian, rho_unsupervised, rho_mem_1e2, rho_mem_3e2, rho_mem_quad, rho_mem_lin)
+        #plot_spatial_correlators(corr_sum, rho_gaussian, rho_unsupervised, rho_mem_1e2, rho_mem_3e2, rho_mem_quad, rho_mem_lin, rho_mem_neural)
     
 
 def main():
     lattice_data = True
 
     if lattice_data:
-        latdat = latticedata(6, "x", 0.4, 48, 16)
+        latdat = latticedata(6, "z", 0.4, 48, 16)
         latdat.initialize_my_color_setup(0.6)
 
-        latdat.compare_elec_conduct_different_methods()
+        #latdat.compare_elec_conduct_different_methods()
 
         latdat.compare_spectral_function_different_methods()
 

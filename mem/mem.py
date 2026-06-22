@@ -213,23 +213,18 @@ class mem:
         M = VXi.T @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
 
-        u_g = np.zeros(M.shape[0], dtype=float)
-
-        #def getRhoMin(al):
-        #    return self.minimizer(corr, VXi, M, U, al, u_g, kernel)
-        
-
-        #rho_min_array = parallel_function_eval(getRhoMin, list(range(len(self.alpha))))
-
+        ### extended search space testing
+        #u_g = np.zeros(M.shape[0], dtype=float) 
+        a_guess = np.zeros(len(self.w))
 
         for i in range(len(self.alpha)):
             rho_min_array = self.minmizer_root(
-                self.dc_corr,  #this might not work?
+                self.dc_corr,
                 VXi, 
                 M, 
                 U, 
                 self.alpha[i], 
-                u_g, 
+                a_guess, 
                 dc_kernel)
             rho_min[i][:] = rho_min_array
             rho_safe = np.maximum(rho_min_array, 1e-300)
@@ -239,9 +234,11 @@ class mem:
             # Check for NaN/Inf before proceeding
             if np.any(~np.isfinite(log_ratio)):
                 print(f"  ⚠ Warning: NaN in log(rho/m), using zeros for u_g")
-                u_g = np.zeros(M.shape[0])
+                a_guess = np.zeros(M.shape[0])
             else:
-                u_g = U.T @ log_ratio # removed the solve call
+                ### extended search space testing
+                #u_g = U.T @ log_ratio 
+                a_guess = log_ratio
             G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
         plt.figure(1, figsize=(12,4))
@@ -275,24 +272,26 @@ class mem:
         M: np.ndarray,
         U: np.ndarray,
         al: float,
-        u_guess: np.ndarray,
+        a_guess: np.ndarray,
         dc_kernel: np.ndarray
     ) -> np.ndarray:
-        """Minimize -Q = -alpha*S + L via L-BFGS-B in the SVD basis b, where rho(b) = def_model * exp(U @ b)"""
+        """Minimize -Q = -alpha*S + L via L-BFGS-B , where rho(a) = def_model * exp(a)"""
         
-        _cache = {'b': None, 'rho': None}
+        _cache = {'a': None, 'rho': None}
         dc_kernel_dw = dc_kernel * self.delomega
 
-        def _get_rho(b):
+        def _get_rho(a):
             """Cached rho computation"""
-            if _cache['b'] is None or not np.array_equal(b, _cache['b']):
-                _cache['b'] = b.copy()
-                _cache['rho'] = self.def_model * np.exp(U @ b)
+            if _cache['a'] is None or not np.array_equal(a, _cache['a']):
+                _cache['a'] = a.copy()
+                ### extended search space testing
+                #_cache['rho'] = self.def_model * np.exp(U @ b)
+                _cache['rho'] = self.def_model * np.exp(a)
             return _cache['rho']
 
-        def objective_and_grad(b):
-            """Returns (-Q, d(-Q)/db)"""
-            rho = _get_rho(b)
+        def objective_and_grad(a):
+            """Returns (-Q, d(-Q)/da)"""
+            rho = _get_rho(a)
             rho_dw = rho * self.delomega
 
             G_rho = dc_kernel_dw @ rho
@@ -309,14 +308,16 @@ class mem:
             dL_drho = -(dc_kernel.T @ diff) * self.delomega
             dS_drho = -log_ratio * self.delomega
 
-            grad_neg_Q = U.T @ ((dL_drho - al * dS_drho) * rho)
+            ### extended search space testing
+            #grad_neg_Q = U.T @ ((dL_drho - al * dS_drho) * rho)
+            grad_neg_Q = (dL_drho - al * dS_drho) * rho
 
             return neg_Q, grad_neg_Q
 
 
         res = minimize(
             fun=objective_and_grad,
-            x0=u_guess,
+            x0=a_guess,
             jac=True,
             method="L-BFGS-B",
             options={
@@ -329,8 +330,10 @@ class mem:
         if not res.success:
             print(f"    ⚠ α={al:.2e}: optimizer did not fully converge: {res.message}")
 
-        u = res.x
-        rho = self.def_model * np.exp(U @ u)
+        a = res.x
+        ### extended search space testing
+        #rho = self.def_model * np.exp(U @ u)
+        rho = self.def_model * np.exp(a)
 
 
         _, neg_Q_final = objective_and_grad(u), res.fun
