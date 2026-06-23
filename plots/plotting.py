@@ -990,7 +990,7 @@ def main():
         latdat = latticedata(6, "z", 0.4, 48, 16)
         latdat.initialize_my_color_setup(0.6)
 
-        #latdat.compare_elec_conduct_different_methods()
+        latdat.compare_elec_conduct_different_methods()
 
         latdat.compare_spectral_function_different_methods()
 

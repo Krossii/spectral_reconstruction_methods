@@ -152,7 +152,7 @@ def get_default_model(
         return m_0 * w**2
     if defmod == "exact" or defmod == "file":
         data = np.loadtxt(file)
-        def_model = w*data[:, 1] # because results from unsupervised are rho/w
+        def_model = data[:, 1]
         return def_model
     raise ValueError("Invalid choice of default model")
 
@@ -300,8 +300,8 @@ class mem:
             L = 0.5 * np.dot(diff, diff)
 
             log_ratio = np.log(np.maximum(rho / np.maximum(self.def_model, 1e-300),1e-300))
-            S = np.sum(rho - self.def_model - 
-                rho * log_ratio) * self.delomega
+            S = np.sum((rho - self.def_model - 
+                rho * log_ratio )* self.delomega) 
             
             neg_Q = L - al * S
 
@@ -321,11 +321,12 @@ class mem:
             jac=True,
             method="L-BFGS-B",
             options={
-                "maxiter": 500,
+                "maxiter": 5000,
                 "ftol": 1e-12,
                 "gtol": 1e-8
             }
         )
+        
         
         if not res.success:
             print(f"    ⚠ α={al:.2e}: optimizer did not fully converge: {res.message}")
@@ -336,7 +337,7 @@ class mem:
         rho = self.def_model * np.exp(a)
 
 
-        _, neg_Q_final = objective_and_grad(u), res.fun
+        _, neg_Q_final = objective_and_grad(a), res.fun
         grad_norm = np.linalg.norm(res.jac) if hasattr(res, 'jac') and res.jac is not None else float('nan')
         status = "✓" if res.success else "⚠"
         print(f"  α={al:.2e} {status} nit={res.nit} |∇(-Q)|={grad_norm:.2e} -Q={neg_Q_final:.4e}")
@@ -352,21 +353,25 @@ class mem:
         """Calculation of P[alpha|D,H,M] as per MEM paper step 2"""
         P_alphaHM = 1 # Laplace's rule
         S, L, exp, prefactor = np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha)), np.zeros(len(self.alpha))
-        evs = np.zeros((len(self.alpha), len(self.w)))
+        evs = np.zeros((len(self.alpha), len(self.tau)))
         Hess_mat = self.dc_kernel.T @ self.dc_kernel
         Hess_mat = 0.5 * (Hess_mat + Hess_mat.T) # ensure symmetry
 
         for i in range(len(self.alpha)):
             rho_vec = np.maximum(rho[i][:].astype(np.float64), 1e-300) # avoid exact zeros for eigenvalue function
-            S_mat = np.sqrt(np.diag(rho_vec*self.delomega))
-            lam_mat = S_mat @ Hess_mat @ S_mat
-            lam_mat = 0.5 * (lam_mat + lam_mat.T) #ensure symmetry
+            #S_mat = np.sqrt(np.diag(rho_vec*self.delomega))
+            #lam_mat = S_mat @ Hess_mat @ S_mat
+            #lam_mat = 0.5 * (lam_mat + lam_mat.T) #ensure symmetry
 
-            eigval, eigvec = np.linalg.eigh(lam_mat)
+            B = self.dc_kernel * np.sqrt(rho_vec * self.delomega)    ### eigenvalue trick to speed up the calculation
+            small = B @ B.T
+            eigval = np.linalg.eigvalsh(small)
+
+            #eigval = np.linalg.eigvalsh(lam_mat)
 
             machine_eps = np.finfo(float).eps
             scale = max(1.0, np.max(np.abs(eigval)))
-            tol = lam_mat.shape[0] * machine_eps * scale # relative tolerance
+            tol = small.shape[0] * machine_eps * scale # relative tolerance
             abs_tol = 1e-12 # absolute floor (relaxable to 1e-10)
             neg_tol = max(tol, abs_tol)
 
@@ -381,13 +386,13 @@ class mem:
             
             
             evs[i][:] = eigval
-            S[i] = (np.sum(rho[i][:] - self.def_model) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model))) * self.delomega
+            S[i] = np.sum((rho[i][:] - self.def_model)* self.delomega) - np.nansum(rho[i][:]*np.log(rho[i][:]/self.def_model)* self.delomega)
             G_dc = self.dc_kernel @ (rho[i][:] * self.delomega)
             diff_dc = self.dc_corr - G_dc
             L[i] = 0.5 * np.dot(diff_dc, diff_dc)
 
             pos = eigval > 0 
-            log_prefactor = 0.5 * np.sum(np.log(self.alpha[i] * self.delomega) - np.log(self.alpha[i] * self.delomega + eigval[pos]))
+            log_prefactor = 0.5 * np.sum(np.log(self.alpha[i]) - np.log(self.alpha[i] + eigval[pos]))
             prefactor[i] = log_prefactor
             exp[i] = log_prefactor + self.alpha[i] * S[i] - L[i]
 

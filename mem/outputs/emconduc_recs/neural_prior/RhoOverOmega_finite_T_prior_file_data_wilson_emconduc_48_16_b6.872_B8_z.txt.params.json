@@ -4,7 +4,7 @@
     "alpha_max": 2,
     "alpha_points": 100,
     "default_model": "file",
-    "default_model_file": "../neuralFit/outputs/RhoOverOmega_data_wilson_emconduc_48_16_b6.872_B8_z.txt",
+    "default_model_file": "../neuralFit/outputs/emconduc_recs/mem_priors/RhoOverOmega_data_wilson_emconduc_48_16_b6.872_B8_z.txt",
     "omega_min": 0,
     "omega_max": 10,
     "omega_points": 500,
