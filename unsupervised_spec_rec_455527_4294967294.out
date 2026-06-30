@@ -1,0 +1,55 @@
+Start 2026-06-30 14:43:04 | 455527 unsupervised_spec_rec | v01.clusternet | /work/home/candratschke/spectral_reconstruction_methods 
+
+****************************************
+Checking for create_data:
+False
+****************************************
+Calling program for method:
+UnsupervisedNN
+****************************************
+Running fits with the following parameters:
+{'FiniteT_kernel': True,
+ 'Nt': 32,
+ 'correlatorCols': '3:',
+ 'correlatorFile': '/work/home/candratschke/mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise2.dat',
+ 'epochs': [2000, 90000, 10000],
+ 'errorCol': 2,
+ 'errorWeighting': True,
+ 'errormethod': 'jackknife',
+ 'extractedQuantity': 'RhoOverOmega',
+ 'lambda_l2': [0.0001, 6.66754659e-08, 6.66754659e-08],
+ 'lambda_s': [1e-06, 3.55323189e-05, 3.55323189e-05],
+ 'learning_rate': [0.001, 0.0001, 1e-05],
+ 'meanCol': 1,
+ 'multiFit': False,
+ 'networkStructure': 'SpectralNN',
+ 'omega_max': 40,
+ 'omega_min': 0,
+ 'omega_points': 500,
+ 'outputDir': './outputs/',
+ 'outputFile': '',
+ 'saveLossHistory': True,
+ 'saveParams': True,
+ 'saveWeightHistograms': False,
+ 'verbose': True,
+ 'width': [32, 32, 32],
+ 'xCol': 0}
+========================================
+Fitting mean correlator
+========================================
+Training for 2000 epochs
+Epoch 0, Loss: 9692.2802734375
+Epoch 200, Loss: 12.003905296325684
+Epoch 400, Loss: 3.059857130050659
+Epoch 600, Loss: 1.3657604455947876
+Epoch 800, Loss: 0.7664026021957397
+Epoch 1000, Loss: 0.4880535304546356
+Epoch 1200, Loss: 0.3370124399662018
+Epoch 1400, Loss: 0.24612641334533691
+Epoch 1600, Loss: 0.18623368442058563
+Epoch 1800, Loss: 0.14469179511070251
+Epoch 1999, Loss: 0.11649356037378311
+Training took 65.24 seconds
+----------------------------------------
+Training for 90000 epochs
+Epoch 0, Loss: 0.10320842266082764

@@ -1,5 +1,5 @@
 {
-    "Method": "MEM",
+    "Method": "UnsupervisedNN",
     "lambda_s": [1e-6,3.55323189e-05,3.55323189e-05],
     "lambda_l2": [1e-4,6.66754659e-08,6.66754659e-08],
     "epochs": [2000,90000,10000],
@@ -28,11 +28,11 @@
     "omega_min": 0,
     "omega_max": 40,
     "omega_points": 500,
-    "Nt": 16,
+    "Nt": 32,
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt16_noise2.dat",
+    "correlatorFile": "../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise${noise}.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -43,6 +43,6 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "cluster": true,
+    "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/"
 }

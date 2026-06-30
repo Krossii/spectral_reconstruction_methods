@@ -30,11 +30,11 @@
     "omega_min": 0,
     "omega_max": 40,
     "omega_points": 500,
-    "Nt": 16,
+    "Nt": 32,
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "../../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt16_noise4.dat",
+    "correlatorFile": "/work/home/candratschke/mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -44,7 +44,7 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": "",
+    "cluster": true,
+    "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/",
     "networkStructure": "SpectralNN"
 }
