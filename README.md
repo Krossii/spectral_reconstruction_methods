@@ -230,4 +230,5 @@ The following non-standard libraries are needed to run the program:
 - `tensorflow` (for machine learning)
 - `fredipy` (for the Gaussian method)
 - `mpmath` (for the HLT method)
+
 Of course these only need to be installed when using the respective reconstruction methods.

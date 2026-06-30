@@ -5,6 +5,7 @@ import pprint
 from typing import List, Tuple, Callable
 import subprocess
 import os
+import sys
 
 def initializeArgumentParser(
         paramsDefaultDict: dict
@@ -209,37 +210,47 @@ def call_method_programs(
     if parameterHandler.get_params()["Method"] == "UnsupervisedNN":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "neuralFit/")
+            os.chdir(working_dir)
+            os.execv(sys.executable, [sys.executable, "neuralFitv2.py", "--config", "params.json"])
         else:
             working_dir = "neuralFit/"
-        subprocess.Popen(["python", "neuralFitv2.py", "--config", "params.json"], cwd=working_dir).communicate()
+            subprocess.Popen([sys.executable, "neuralFitv2.py", "--config", "params.json"], cwd=working_dir).communicate()
 
     if parameterHandler.get_params()["Method"] == "SupervisedNN" or parameterHandler.get_params()["Method"] == "KadesFC" or parameterHandler.get_params()["Method"] == "KadesConv":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "supervised_ml/")
+            os.chdir(working_dir)
+            os.execv(sys.executable, [sys.executable, "supervisedml.py", "--config", "params.json"])
         else:
             working_dir = "supervised_ml/"
-        subprocess.Popen(["python", "supervisedml.py", "--config", "params.json"], cwd=working_dir).communicate()
+            subprocess.Popen(["python", "supervisedml.py", "--config", "params.json"], cwd=working_dir).communicate()
 
     if parameterHandler.get_params()["Method"] == "Gaussian":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "gaussian/")
+            os.chdir(working_dir)
+            os.execv(sys.executable, [sys.executable, "gpr_rec.py", "--config", "params.json"])
         else:
             working_dir = "gaussian/"
-        subprocess.Popen(["python", "gpr_rec.py", "--config", "params.json"], cwd=working_dir).communicate()
+            subprocess.Popen(["python", "gpr_rec.py", "--config", "params.json"], cwd=working_dir).communicate()
     
     if parameterHandler.get_params()["Method"] == "MEM":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "mem/")
+            os.chdir(working_dir)
+            os.execv(sys.executable, [sys.executable, "mem.py", "--config", "params.json"])
         else:
             working_dir = "mem/"
-        subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd=working_dir).communicate()
+            subprocess.Popen(["python", "mem.py", "--config", "params.json"], cwd=working_dir).communicate()
     
     if parameterHandler.get_params()["Method"] == "HLT":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "hlt/")
+            os.chdir(working_dir)
+            os.execv(sys.executable, [sys.executable, "hlt.py", "--config", "params.json"])
         else:
             working_dir = "hlt/"
-        subprocess.Popen(["python", "hlt.py", "--config", "params.json"], cwd=working_dir).communicate()
+            subprocess.Popen(["python", "hlt.py", "--config", "params.json"], cwd=working_dir).communicate()
 
 def main(
         paramsDefaultDict

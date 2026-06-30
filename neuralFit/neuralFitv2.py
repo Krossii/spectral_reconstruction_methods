@@ -193,18 +193,18 @@ class networkTrainer:
         individual_losses_history = []
         net_num_epochs = num_epochs - start_epoch
         if verbose:
-            print(f'Training for {net_num_epochs} epochs')
+            print(f'Training for {net_num_epochs} epochs', flush=True)
             start_time = time.time()
         for epoch in range(start_epoch, start_epoch + num_epochs):
             total_loss_value, individual_losses = self.train_step(epoch)
             losses.append(total_loss_value)
             individual_losses_history.append(individual_losses)
             if verbose and (epoch == 0 or (net_num_epochs > 10 and epoch % (net_num_epochs // 10) == 0)):
-                print(f'Epoch {epoch}, Loss: {total_loss_value}')
-        print(f'Epoch {epoch}, Loss: {total_loss_value}')
+                print(f'Epoch {epoch}, Loss: {total_loss_value}', flush=True)
+        print(f'Epoch {epoch}, Loss: {total_loss_value}', flush=True)
         if verbose:
             end_time = time.time()
-            print(f'Training took {end_time - start_time:.2f} seconds')
+            print(f'Training took {end_time - start_time:.2f} seconds', flush=True)
         return losses, individual_losses_history
 
 # Interface and runner classes
@@ -305,7 +305,7 @@ class neuralFit:
             total_loss_history.extend(total_loss_history_tmp)
             loss_history.extend(loss_history_tmp)
             if verbose:
-                print("-" * 40)
+                print("-" * 40, flush=True)
         spectralFunction = model(constant_input)
 
         # --- Save weight histograms and sparsity stats if requested ---
@@ -492,9 +492,9 @@ class FitRunner:
 
     def run_single_fit(self, fittedQuantity, messageString ,results: List[np.ndarray], loss_histories: List[np.ndarray]) -> None:
         start_time = time.time()
-        print("=" * 40)
-        print(messageString)
-        print("=" * 40)
+        print("=" * 40, flush=True)
+        print(messageString, flush=True)
+        print("=" * 40, flush=True)
         sf, loss_history = self.fitter.fitCorrelator(
             self.x,
             self.error,
@@ -506,8 +506,8 @@ class FitRunner:
             verbose=self.verbose
         )
         if self.verbose:
-            print("-" * 40)
-            print(f"Training time: {time.time() - start_time:.2f} seconds")
+            print("-" * 40, flush=True)
+            print(f"Training time: {time.time() - start_time:.2f} seconds", flush=True)
         results.append(sf)
         loss_histories.append(loss_history)
 
@@ -598,8 +598,8 @@ def main(paramsDefaultDict):
     parameterHandler.load_params(args.config,args)
 
     if parameterHandler.get_verbose():
-        print("*"*40)
-        print("Running fits with the following parameters:")
+        print("*"*40, flush=True)
+        print("Running fits with the following parameters:", flush=True)
         pprint.pprint(parameterHandler.get_params())
 
     fitRunner = FitRunner(parameterHandler)
