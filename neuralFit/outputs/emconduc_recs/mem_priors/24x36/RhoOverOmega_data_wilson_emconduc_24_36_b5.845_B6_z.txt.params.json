@@ -1,0 +1,48 @@
+{
+    "lambda_s": [
+        1e-06,
+        3.55323189e-05,
+        3.55323189e-05
+    ],
+    "lambda_l2": [
+        0.0001,
+        6.66754659e-08,
+        6.66754659e-08
+    ],
+    "epochs": [
+        2000,
+        90000,
+        10000
+    ],
+    "learning_rate": [
+        0.001,
+        0.0001,
+        1e-05
+    ],
+    "width": [
+        32,
+        32,
+        32
+    ],
+    "errorWeighting": true,
+    "saveWeightHistograms": false,
+    "networkStructure": "SpectralNN",
+    "omega_min": 0,
+    "omega_max": 10,
+    "omega_points": 500,
+    "Nt": 36,
+    "extractedQuantity": "RhoOverOmega",
+    "FiniteT_kernel": false,
+    "multiFit": false,
+    "correlatorFile": "../dat/data_wilson_emconduc_24_36_b5.845_B6_z.txt",
+    "xCol": 0,
+    "meanCol": 1,
+    "errorCol": 2,
+    "correlatorCols": "3:",
+    "errormethod": "jackknife",
+    "saveParams": true,
+    "saveLossHistory": true,
+    "verbose": true,
+    "outputFile": "",
+    "outputDir": "./outputs/"
+}

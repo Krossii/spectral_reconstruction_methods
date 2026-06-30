@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cd ~/Desktop/spec_rec_methods
-for B in 0 2 4 6 8 10 12
+for noise in 2 3 4
 do
-    python3 reconstruction.py --config params.json --default_model_file "../neuralFit/outputs/emconduc_recs/mem_priors/RhoOverOmega_data_wilson_emconduc_48_16_b6.872_B${B}_x.txt" --correlatorFile "../dat/data_wilson_emconduc_48_16_b6.872_B${B}_x.txt"
+    python3 reconstruction.py --config params.json --default_model_file "../neuralFit/outputs/mock_data/Nt16/RhoOverOmega_mock_corr_BW_Nt16_noise${noise}.dat" --correlatorFile "../../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt16_noise${noise}.dat"
 done

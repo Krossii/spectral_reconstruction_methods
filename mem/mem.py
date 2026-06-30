@@ -197,7 +197,7 @@ class mem:
             self, 
             corr: np.ndarray, 
             kernel: np.ndarray,
-            dc_kernel: np.ndarray, # Change: accept decorrelated kernel
+            dc_kernel: np.ndarray,
             ) -> np.ndarray:
         """Minimization of Q = alpha S - L for all alpha as per MEM paper step 1"""
         U, xi, Vt = np.linalg.svd(dc_kernel.T, full_matrices=False)
@@ -213,8 +213,6 @@ class mem:
         M = VXi.T @ VXi
         rho_min = np.zeros((len(self.alpha), len(self.w)))
 
-        ### extended search space testing
-        #u_g = np.zeros(M.shape[0], dtype=float) 
         a_guess = np.zeros(len(self.w))
 
         for i in range(len(self.alpha)):
@@ -236,8 +234,6 @@ class mem:
                 print(f"  ⚠ Warning: NaN in log(rho/m), using zeros for u_g")
                 a_guess = np.zeros(M.shape[0])
             else:
-                ### extended search space testing
-                #u_g = U.T @ log_ratio 
                 a_guess = log_ratio
             G_rho = Di(kernel, rho_min[i][:], self.delomega) 
 
@@ -254,6 +250,20 @@ class mem:
         plt.yscale("log")
         plt.tight_layout()
         plt.savefig("mem_alpha_scan.png")
+
+        #plot rho/w against alpha for diagnostics in unsupervised prior
+        cond = np.zeros((len(self.alpha)))
+        for i in range(len(self.alpha)):
+            cond[i] = rho_min[i][0]
+
+        plt.figure(2, figsize=(12,4))
+        plt.plot(self.alpha, cond, color = "tomato", marker = "x")
+        plt.axhline(self.def_model[0], xmin = 0, xmax = 1, color = "cornflowerblue")
+        plt.ylabel(r"$\rho/ \omega$")
+        plt.xlabel(r"$\alpha$")
+        plt.savefig("mem_cond_alpha_dep.png")
+
+
         # Auto-select optimal alpha
         alpha_opt, rho_opt, idx_opt = self.select_optimal_alpha_from_scan(
             rho_min, corr, kernel, method='lcurve')
@@ -284,8 +294,6 @@ class mem:
             """Cached rho computation"""
             if _cache['a'] is None or not np.array_equal(a, _cache['a']):
                 _cache['a'] = a.copy()
-                ### extended search space testing
-                #_cache['rho'] = self.def_model * np.exp(U @ b)
                 _cache['rho'] = self.def_model * np.exp(a)
             return _cache['rho']
 
@@ -308,8 +316,6 @@ class mem:
             dL_drho = -(dc_kernel.T @ diff) * self.delomega
             dS_drho = -log_ratio * self.delomega
 
-            ### extended search space testing
-            #grad_neg_Q = U.T @ ((dL_drho - al * dS_drho) * rho)
             grad_neg_Q = (dL_drho - al * dS_drho) * rho
 
             return neg_Q, grad_neg_Q
@@ -321,7 +327,7 @@ class mem:
             jac=True,
             method="L-BFGS-B",
             options={
-                "maxiter": 5000,
+                "maxiter": 10000,
                 "ftol": 1e-12,
                 "gtol": 1e-8
             }
@@ -332,8 +338,6 @@ class mem:
             print(f"    ⚠ α={al:.2e}: optimizer did not fully converge: {res.message}")
 
         a = res.x
-        ### extended search space testing
-        #rho = self.def_model * np.exp(U @ u)
         rho = self.def_model * np.exp(a)
 
 
