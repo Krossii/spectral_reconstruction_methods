@@ -34,7 +34,7 @@
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": true,
     "multiFit": false,
-    "correlatorFile": "/work/home/candratschke/mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise2.dat",
+    "correlatorFile": "/work/home/candratschke/mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise4.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
