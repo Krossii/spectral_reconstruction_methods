@@ -26,13 +26,13 @@
     "lamb": 0,
     "smearing": 0.3,
     "omega_min": 0,
-    "omega_max": 40,
+    "omega_max": 10,
     "omega_points": 500,
-    "Nt": 32,
+    "Nt": 36,
     "extractedQuantity": "RhoOverOmega",
-    "FiniteT_kernel": true,
+    "FiniteT_kernel": false,
     "multiFit": false,
-    "correlatorFile": "../mock-data-main/finite_T/uncorrelated_data/BW/mock_corr_BW_Nt32_noise${noise}.dat",
+    "correlatorFile": "../dat/data_wilson_emconduc_24_36_b5.845_B${B}_x.txt",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -43,6 +43,6 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": true,
-    "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/"
+    "cluster": false,
+    "clusterpath": ""
 }

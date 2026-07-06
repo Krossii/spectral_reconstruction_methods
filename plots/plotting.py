@@ -134,8 +134,8 @@ class loading:
             predicted_spf_bins = np.zeros((len(self.kwargs['noise']), self.kwargs['N_samples']-1, len(self.w)))
             spf_var = np.zeros((len(self.kwargs['noise']), len(self.w)))
             for i in range(len(self.kwargs['noise'])):
-                spf_data = np.loadtxt(f"{self.home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_mock_corr_{self.kwargs['function']}_Nt{self.Nt}_noise{self.kwargs['noise'][i]}.dat")
-                print("Loaded from:",  f"{self.home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_mock_corr_{self.kwargs['function']}_Nt{self.Nt}_noise{self.kwargs['noise'][i]}.dat")
+                spf_data = np.loadtxt(f"{self.home_path}/spec_rec_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_mock_corr_{self.kwargs['function']}_Nt{self.Nt}_noise{self.kwargs['noise'][i]}.dat")
+                print("Loaded from:",  f"{self.home_path}/spec_rec_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_mock_corr_{self.kwargs['function']}_Nt{self.Nt}_noise{self.kwargs['noise'][i]}.dat")
                 if self.temp == "finite_T":
                     predicted_spf[i][:] = spf_data[:,1]/self.Nt
                     spf_var[i][:] = spf_data[:,2]/self.Nt
@@ -148,8 +148,8 @@ class loading:
                         predicted_spf_bins[i][j][:] = spf_data[:,j+3]
 
         else:
-            spf_data = np.loadtxt(f"{self.home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_data_wilson_emconduc_48_{self.Nt}_b6.872_B{self.kwargs['B_field']}_{self.kwargs['direction']}.txt")
-            print("Loaded from:",  f"{self.home_path}/spectral_reconstruction_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_data_wilson_emconduc_48_{self.Nt}_b6.872_B{self.kwargs['B_field']}_{self.kwargs['direction']}.txt")
+            spf_data = np.loadtxt(f"{self.home_path}/spec_rec_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_data_wilson_emconduc_48_{self.Nt}_b6.872_B{self.kwargs['B_field']}_{self.kwargs['direction']}.txt")
+            print("Loaded from:",  f"{self.home_path}/spec_rec_methods/mem/outputs/{extr_Q}_{self.temp}_prior_{defmod}_data_wilson_emconduc_48_{self.Nt}_b6.872_B{self.kwargs['B_field']}_{self.kwargs['direction']}.txt")
             predicted_spf = spf_data[:,1]
             spf_var = np.sqrt(spf_data[:,2])
             
@@ -161,7 +161,7 @@ class loading:
             G_output_bins = np.zeros((len(self.kwargs['noise']), self.kwargs['N_samples']-1, self.Nt))
             G_output_err = np.zeros((len(self.kwargs['noise']), self.Nt))
             for i in range(len(self.kwargs['noise'])):
-                if temp == "finite_T":
+                if self.temp == "finite_T":
                     G_output[i][:] = Di(K, predicted_spf[i][:]*self.Nt, self.w[1]-self.w[0])
                     for j in range(self.kwargs['N_samples']-1):
                         G_output_bins[i][j][:] = Di(K, predicted_spf_bins[i][j][:]*self.Nt, self.w[1] - self.w[0])
@@ -199,8 +199,8 @@ class loading:
                 else:
                     default_model[self.w == 0] = m_0
             if defmod == "file":
-                data = np.loadtxt("/mnt/c/Users/chris/OneDrive/Desktop/unsupervised_results/UnsupAI_mock_corr_BW_Nt36_noise4_750.dat.txt")
-                default_model = self.w*data[:, 1] # because recsults from unsupervised are rho/w
+                data = np.loadtxt("/home/Christian/Desktop/spec_rec_methods/neuralFit/outputs/mock_data/Nt16/RhoOverOmega_mock_corr_BW_Nt16_noise4.dat")
+                default_model = data[:, 1] # because recsults from unsupervised are rho/w
         else:
             default_model = np.ones(len(self.w))
             if defmod == "constant":
@@ -755,7 +755,7 @@ class latticedata:
 
         plot_name = plt.figure("compare electric conductivities")
 
-        methods = {
+        """methods = {
             "Gaussian":"gaussian",
             "Multipoint":"multipoint",
             "Unsupervised learning":"unsupervised", 
@@ -763,7 +763,9 @@ class latticedata:
             "MEM constant 3e-2":"mem_constant_3e-2",
             "MEM quadratic":"mem_quadratic", 
             "MEM linear":"mem_linear",
-            "MEM neural":"mem_neural"}
+            "MEM neural":"mem_neural"}"""
+        
+        methods = {"Unsupervised learning":"unsupervised"}
 
         temp = self.set_color_palette_using_keys("Set1",np.arange(9))
         my_palette = dict()
@@ -779,7 +781,7 @@ class latticedata:
         ax = plt.subplot(111)
 
         for m in methods.keys():
-            input_file = "../dat/finite_T_reconstructions/%s/econduct_B_%s.dat"%(methods[m],self.direction)
+            input_file = "../dat/zero_T_reconstructions/%s/econduct_B_%s.dat"%(methods[m],self.direction)
             if os.path.isfile(input_file):
                 B_vec, conduct_vec, conduct_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
 
@@ -797,12 +799,12 @@ class latticedata:
         plt.legend(loc="upper left")
         plt.xlabel("$eB/T^2$")
         plt.ylabel("$\sigma_%s(B)/\sigma_%s(B=0)$"%(self.direction,self.direction))
-        plt.xlim(0,27)
-        plt.ylim(0,5)
+        #plt.xlim(0,27)
+        #plt.ylim(0,5)
         plt.legend(loc="upper left")
         plt.subplots_adjust(left=0.17,right=0.99,bottom=0.13,top=0.98)
 
-        plt.savefig("conduct_%s_variousmethods.jpg"%self.direction,dpi=500)
+        plt.savefig("conduct_%s_variousmethods_%i_%i.jpg"%(self.direction, self.Ns, self.Nt),dpi=500)
 
     def compare_spectral_function_different_methods(
             self,
@@ -823,91 +825,106 @@ class latticedata:
         my_palette["mem_lin"] = temp[6]
         my_palette["mem_neural"] = temp[4]
 
-        # Gaussian results
-        input_file = "../gaussian/emconduc_recs/gauss_specf.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
-        if os.path.isfile(input_file):
-            w_vec, rho_gaussian, rho_gaussian_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
-            plt.fill_between(self.Nt*w_vec,rho_gaussian-rho_gaussian_err,rho_gaussian+rho_gaussian_err,alpha=0.5,color=my_palette["gauss"],edgecolor="black",label="Gaussian")
+        if self.Nt == 16:
+            # Gaussian results
+            input_file = "../gaussian/emconduc_recs/gauss_specf.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            if os.path.isfile(input_file):
+                w_vec, rho_gaussian, rho_gaussian_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+                plt.fill_between(self.Nt*w_vec,rho_gaussian-rho_gaussian_err,rho_gaussian+rho_gaussian_err,alpha=0.5,color=my_palette["gauss"],edgecolor="black",label="Gaussian")
 
-        # HLT results
-        """
-        input_file = "data/hlt/hlt_specf_eps%.2f.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(epsilon,Nb,direction)
-        if os.path.isfile(input_file):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
-            plt.fill_between(Nt*w_vec,rho_vec-rho_err,rho_vec+rho_err,alpha=0.5,color=my_palette["hlt"],edgecolor="black",label=r"HLT (smearing = %.2f)"%epsilon)
-        """
+            # HLT results
+            """
+            input_file = "data/hlt/hlt_specf_eps%.2f.data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(epsilon,Nb,direction)
+            if os.path.isfile(input_file):
+                w_vec, rho_vec, rho_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+                plt.fill_between(Nt*w_vec,rho_vec-rho_err,rho_vec+rho_err,alpha=0.5,color=my_palette["hlt"],edgecolor="black",label=r"HLT (smearing = %.2f)"%epsilon)
+            """
 
-        # MEM results
-        input_file_1e2_const = "../mem/outputs/emconduc_recs/constant_1e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
-        input_file_3e2_const = "../mem/outputs/emconduc_recs/constant_3e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
-        input_file_quad = "../mem/outputs/emconduc_recs/quadratic_prior/RhoOverOmega_finite_T_prior_quadratic_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
-        input_file_lin = "../mem/outputs/emconduc_recs/linear_prior/RhoOverOmega_finite_T_prior_linear_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
-        input_file_neural = "../mem/outputs/emconduc_recs/neural_prior/RhoOverOmega_finite_T_prior_file_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            # MEM results
+            input_file_1e2_const = "../mem/outputs/emconduc_recs/constant_1e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            input_file_3e2_const = "../mem/outputs/emconduc_recs/constant_3e-2_prior/RhoOverOmega_finite_T_prior_constant_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            input_file_quad = "../mem/outputs/emconduc_recs/quadratic_prior/RhoOverOmega_finite_T_prior_quadratic_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            input_file_lin = "../mem/outputs/emconduc_recs/linear_prior/RhoOverOmega_finite_T_prior_linear_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            input_file_neural = "../mem/outputs/emconduc_recs/neural_prior/RhoOverOmega_finite_T_prior_file_data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
+            
+            # MEM const 1e-2 results        
+            if os.path.isfile(input_file_1e2_const):
+                w_vec, rho_vec, rho_err = np.loadtxt(input_file_1e2_const,usecols=(0,1,2),unpack=True)
+                w_mem = w_vec[w_vec <= 1.879]
+                rho_mem_1e2 = rho_vec[:len(w_mem)]
+                rho_err_mem_1e2 = rho_err[:len(w_mem)]
+                plt.fill_between(self.Nt*w_mem,rho_mem_1e2-rho_err_mem_1e2,rho_mem_1e2+rho_err_mem_1e2,alpha=0.5,color=my_palette["mem_const_1e-2"],edgecolor="black",label="MEM 1e-2 const prior")
+            
+            # MEM const 3e-2 results
+            if os.path.isfile(input_file_3e2_const):
+                w_vec, rho_vec, rho_err = np.loadtxt(input_file_3e2_const,usecols=(0,1,2),unpack=True)
+                w_mem = w_vec[w_vec <= 1.879]
+                rho_mem_3e2 = rho_vec[:len(w_mem)]
+                rho_err_mem_3e2 = rho_err[:len(w_mem)]
+                plt.fill_between(self.Nt*w_mem,rho_mem_3e2-rho_err_mem_3e2,rho_mem_3e2+rho_err_mem_3e2,alpha=0.5,color=my_palette["mem_const_3e-2"],edgecolor="black",label="MEM 3e-2 const prior")
+            
+            # MEM quadratic results
+            if os.path.isfile(input_file_quad):
+                w_vec, rho_vec, rho_err = np.loadtxt(input_file_quad,usecols=(0,1,2),unpack=True)
+                w_mem_quad = w_vec[w_vec <= 1.879]
+                rho_mem_quad = rho_vec[:len(w_mem_quad)]
+                rho_err_mem_quad = rho_err[:len(w_mem_quad)]
+                plt.fill_between(self.Nt*w_mem_quad,rho_mem_quad-rho_err_mem_quad,rho_mem_quad+rho_err_mem_quad,alpha=0.5,color=my_palette["mem_quad"],edgecolor="black",label="MEM quadratic prior")
+
+            # MEM linear results
+            if os.path.isfile(input_file_lin):
+                w_vec, rho_vec, rho_err = np.loadtxt(input_file_lin,usecols=(0,1,2),unpack=True)
+                w_mem_lin = w_vec[w_vec <= 1.879]
+                rho_mem_lin = rho_vec[:len(w_mem_lin)]
+                rho_err_mem_lin = rho_err[:len(w_mem_lin)]
+                plt.fill_between(self.Nt*w_mem_lin,rho_mem_lin-rho_err_mem_lin,rho_mem_lin+rho_err_mem_lin,alpha=0.5,color=my_palette["mem_lin"],edgecolor="black",label="MEM linear prior")
+
+            # MEM neural results
+            if os.path.isfile(input_file_neural):
+                w_vec, rho_vec, rho_err = np.loadtxt(input_file_neural,usecols=(0,1,2),unpack=True)
+                w_mem_neural = w_vec[w_vec <= 1.879]
+                rho_mem_neural = rho_vec[:len(w_mem_neural)]
+                rho_err_mem_neural = rho_err[:len(w_mem_neural)]
+                plt.fill_between(self.Nt*w_mem_neural,rho_mem_neural-rho_err_mem_neural,rho_mem_neural+rho_err_mem_neural,alpha=0.5,color=my_palette["mem_neural"],edgecolor="black",label="MEM neural prior")
+
+            # Multipoint results
+            input_file = "../dat/finite_T_reconstructions/multipoint/econduct_B_%s.dat"%self.direction
+            if os.path.isfile(input_file):
+                B_vec, conduct_vec, conduct_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+
+                conduct_dict = {Nb:conduct for Nb,conduct in [*zip(B_vec,conduct_vec)]}
+                conduct_err_dict = {Nb:err for Nb,err in [*zip(B_vec,conduct_err)]}
+
+                plt.errorbar([0],[conduct_dict[self.Nb]],yerr=[conduct_err_dict[self.Nb]],fmt="s",capsize=4,color=my_palette["multi"],label="Multipoint")
+
+            # Unsupervised ML results
+            if self.direction == "x":
+                input_file = "../neuralFit/outputs/emconduc_recs/rhoOomegaB%i_x_delomega02783_pts500.txt"%self.Nb
+            else:
+                input_file = "../neuralFit/outputs/emconduc_recs/rho_over_omega_B%i_z.txt"%self.Nb
+            if os.path.isfile(input_file):
+                w_vec, rho_unsupervised, rho_unsupervised_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+                plt.fill_between(self.Nt*w_vec,rho_unsupervised-rho_unsupervised_err,rho_unsupervised+rho_unsupervised_err,alpha=0.7,color=my_palette["unsup"],edgecolor="black",label=r"Unsupervised learning")
+
+            # Correlator
+            input_file = "../dat/data_wilson_emconduc_%i_%i_b6.872_B%i_%s.txt"%(self.Ns,self.Nt,self.Nb,self.direction)
+            if os.path.isfile(input_file):
+                tau, corr = np.loadtxt(input_file, usecols = (0,1), unpack=True)
+                corr_sum = sum(corr)
         
-        # MEM const 1e-2 results        
-        if os.path.isfile(input_file_1e2_const):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file_1e2_const,usecols=(0,1,2),unpack=True)
-            w_mem = w_vec[w_vec <= 1.879]
-            rho_mem_1e2 = rho_vec[:len(w_mem)]
-            rho_err_mem_1e2 = rho_err[:len(w_mem)]
-            plt.fill_between(self.Nt*w_mem,rho_mem_1e2-rho_err_mem_1e2,rho_mem_1e2+rho_err_mem_1e2,alpha=0.5,color=my_palette["mem_const_1e-2"],edgecolor="black",label="MEM 1e-2 const prior")
+        if self.Nt == 36:
+            # Unsupervised ML results
+            input_file = "../neuralFit/outputs/emconduc_recs/mem_priors/%ix%i/RhoOverOmega_data_wilson_emconduc_%i_%i_b5.845_B%i_%s.txt"%(self.Ns, self.Nt, self.Ns, self.Nt, self.Nb, self.direction)
+            if os.path.isfile(input_file):
+                w_vec, rho_unsupervised, rho_unsupervised_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
+                plt.fill_between(self.Nt*w_vec,rho_unsupervised-rho_unsupervised_err,rho_unsupervised+rho_unsupervised_err,alpha=0.7,color=my_palette["unsup"],edgecolor="black",label=r"Unsupervised learning")
+            
+            # Correlator
+            input_file = "../dat/data_wilson_emconduc_%i_%i_b5.845_B%i_%s.txt"%(self.Ns,self.Nt,self.Nb,self.direction)
+            if os.path.isfile(input_file):
+                tau, corr = np.loadtxt(input_file, usecols = (0,1), unpack=True)
+                corr_sum = sum(corr)
         
-        # MEM const 3e-2 results
-        if os.path.isfile(input_file_3e2_const):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file_3e2_const,usecols=(0,1,2),unpack=True)
-            w_mem = w_vec[w_vec <= 1.879]
-            rho_mem_3e2 = rho_vec[:len(w_mem)]
-            rho_err_mem_3e2 = rho_err[:len(w_mem)]
-            plt.fill_between(self.Nt*w_mem,rho_mem_3e2-rho_err_mem_3e2,rho_mem_3e2+rho_err_mem_3e2,alpha=0.5,color=my_palette["mem_const_3e-2"],edgecolor="black",label="MEM 3e-2 const prior")
-        
-        # MEM quadratic results
-        if os.path.isfile(input_file_quad):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file_quad,usecols=(0,1,2),unpack=True)
-            w_mem_quad = w_vec[w_vec <= 1.879]
-            rho_mem_quad = rho_vec[:len(w_mem_quad)]
-            rho_err_mem_quad = rho_err[:len(w_mem_quad)]
-            plt.fill_between(self.Nt*w_mem_quad,rho_mem_quad-rho_err_mem_quad,rho_mem_quad+rho_err_mem_quad,alpha=0.5,color=my_palette["mem_quad"],edgecolor="black",label="MEM quadratic prior")
-
-        # MEM linear results
-        if os.path.isfile(input_file_lin):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file_lin,usecols=(0,1,2),unpack=True)
-            w_mem_lin = w_vec[w_vec <= 1.879]
-            rho_mem_lin = rho_vec[:len(w_mem_lin)]
-            rho_err_mem_lin = rho_err[:len(w_mem_lin)]
-            plt.fill_between(self.Nt*w_mem_lin,rho_mem_lin-rho_err_mem_lin,rho_mem_lin+rho_err_mem_lin,alpha=0.5,color=my_palette["mem_lin"],edgecolor="black",label="MEM linear prior")
-
-        # MEM neural results
-        if os.path.isfile(input_file_neural):
-            w_vec, rho_vec, rho_err = np.loadtxt(input_file_neural,usecols=(0,1,2),unpack=True)
-            w_mem_neural = w_vec[w_vec <= 1.879]
-            rho_mem_neural = rho_vec[:len(w_mem_neural)]
-            rho_err_mem_neural = rho_err[:len(w_mem_neural)]
-            plt.fill_between(self.Nt*w_mem_neural,rho_mem_neural-rho_err_mem_neural,rho_mem_neural+rho_err_mem_neural,alpha=0.5,color=my_palette["mem_neural"],edgecolor="black",label="MEM neural prior")
-
-        # Multipoint results
-        input_file = "../dat/finite_T_reconstructions/multipoint/econduct_B_%s.dat"%self.direction
-        if os.path.isfile(input_file):
-            B_vec, conduct_vec, conduct_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
-
-            conduct_dict = {Nb:conduct for Nb,conduct in [*zip(B_vec,conduct_vec)]}
-            conduct_err_dict = {Nb:err for Nb,err in [*zip(B_vec,conduct_err)]}
-
-            plt.errorbar([0],[conduct_dict[self.Nb]],yerr=[conduct_err_dict[self.Nb]],fmt="s",capsize=4,color=my_palette["multi"],label="Multipoint")
-
-        # Unsupervised ML results
-        if self.direction == "x":
-            input_file = "../neuralFit/outputs/emconduc_recs/rhoOomegaB%i_x_delomega02783_pts500.txt"%self.Nb
-        else:
-            input_file = "../neuralFit/outputs/emconduc_recs/rho_over_omega_B%i_z.txt"%self.Nb
-        if os.path.isfile(input_file):
-            w_vec, rho_unsupervised, rho_unsupervised_err = np.loadtxt(input_file,usecols=(0,1,2),unpack=True)
-            plt.fill_between(self.Nt*w_vec,rho_unsupervised-rho_unsupervised_err,rho_unsupervised+rho_unsupervised_err,alpha=0.7,color=my_palette["unsup"],edgecolor="black",label=r"Unsupervised learning")
-
-        # Correlator
-        input_file = "../dat/data_wilson_emconduc_48_16_b6.872_B%i_%s.txt"%(self.Nb,self.direction)
-        if os.path.isfile(input_file):
-            tau, corr = np.loadtxt(input_file, usecols = (0,1), unpack=True)
-            corr_sum = sum(corr)
 
         #plt.text(0.5, 0.5, "PRELIMINARY", color="green", alpha=0.15,transform=ax.transAxes, fontsize=26,horizontalalignment="center")
         #plt.title(r"$48^3\times16$",x=0.15,y=0.62,horizontalalignment="center")
@@ -915,10 +932,10 @@ class latticedata:
         plt.xlabel(r"$\omega/T$")
         plt.ylabel(r"$\rho(\omega)/\omega$")
         plt.xlim(-2,35)
-        plt.ylim(0,0.16)
+        #plt.ylim(0,0.16)
         plt.legend(loc="upper left")
         plt.subplots_adjust(left=0.17,right=0.99,bottom=0.13,top=0.98)
-        plt.savefig("spec_func_variousmethods_%s.jpg"%self.direction,dpi=500)
+        plt.savefig("spec_func_variousmethods_%s_%i_%i.jpg"%(self.direction, self.Ns, self.Nt),dpi=500)
         plt.close(plot_name)
 
         def integrate_spatial_correlator(
@@ -987,7 +1004,7 @@ def main():
     lattice_data = True
 
     if lattice_data:
-        latdat = latticedata(6, "x", 0.4, 48, 16)
+        latdat = latticedata(6, "z", 0.4, 24, 36)
         latdat.initialize_my_color_setup(0.6)
 
         latdat.compare_elec_conduct_different_methods()
@@ -998,20 +1015,20 @@ def main():
 
     else:
         #losshistory = False
-        comparison = True # to be implemented: whether to compare the methods in one plot or just one method at a time
+        comparison = False # to be implemented: whether to compare the methods in one plot or just one method at a time
 
-        home_path = "/mnt/c/Users/chris/OneDrive/Desktop" # home path to the data, should contain the "mock-data-main" folder with the mock data and the "spectral_reconstruction_methods" folder
-        method = "Unsupervised" # method to load and plot, can be "MEM", "BG", "Gaussian", "Unsupervised" or "Supervised"
-        defmod = "quadratic" # default model for MEM, only relevant if method == "MEM", can be "constant", "quadratic" or "file"
+        home_path = "/home/Christian/Desktop" # home path to the data, should contain the "mock-data-main" folder with the mock data and the "spectral_reconstruction_methods" folder
+        method = "mem" # method to load and plot, can be "MEM", "BG", "Gaussian", "Unsupervised" or "Supervised"
+        defmod = "file" # default model for MEM, only relevant if method == "MEM", can be "constant", "quadratic" or "file"
 
-        finite_T = False # Finite T or zero T kernel
+        finite_T = True # Finite T or zero T kernel
         temp = "finite_T" if finite_T else "zero_T"
-        extr_Q = "Rho" # Rho or RhoOverOmega, might differ for different reconstruction methods
+        extr_Q = "RhoOverOmega" # Rho or RhoOverOmega, might differ for different reconstruction methods
 
-        Nt = 36 # number of points in the temporal direction
+        Nt = 16 # number of points in the temporal direction
 
         mock_data = True # whether to use mock data or real lattice data
-        noise = [4] # [2,3,4] # noise levels to compare in the plots
+        noise = [2,3,4] # [2,3,4] # noise levels to compare in the plots
         N_samples = 10 # number of jackknife samples used in the reconstructions
 
         B_field = 12 # only relevant for finite T, finite B dataset
@@ -1048,9 +1065,9 @@ def main():
 
         ld = loading(w, tau, Nt, finite_T, home_path, mock_data, noise = noise, function = function, N_samples = N_samples)
         predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = ld.load_call("MEM", extr_Q, defmod)
-        predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = ld.load_call("BG", extr_Q)
-        predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = ld.load_call("Gaussian", extr_Q)
-        predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = ld.load_call("Unsupervised", extr_Q)
+        #predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = ld.load_call("BG", extr_Q)
+        #predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = ld.load_call("Gaussian", extr_Q)
+        #predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = ld.load_call("Unsupervised", extr_Q)
 
         plot = plotting(w, tau, extr_Q, finite_T, mock_data, noise = noise, function = function, N_samples = N_samples, B_field = B_field, direction = direction)
 
@@ -1062,22 +1079,22 @@ def main():
             G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_gauss[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:], G_output_err_gauss[0][:])
         else:
             #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
-            #plotting_MEM(w, true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
-            plot.mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+            plot.plotting_MEM(true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+            #plot.mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
 
         if mock_data:
             if method == "mem":
                 if len(noise) > 1:
-                    plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
+                    plt.savefig(f"{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise_comparison.png")
                 else:
-                    plt.savefig(f"plots/{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+                    plt.savefig(f"{method}/{method}_{extr_Q}_prior_{defmod}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
             else:
                 if comparison:
-                    plt.savefig(f"plots/Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
+                    plt.savefig(f"Rho_comparison_{function}_{temp}_Nt{Nt}_noise{noise[0]}_v2.png")
                 else:
-                    plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
+                    plt.savefig(f"{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_noise{noise[0]}.png")
         else:
-            plt.savefig(f"plots/{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
+            plt.savefig(f"{method}/{method}_{extr_Q}_{function}_{temp}_Nt{Nt}_B{B_field}_{direction}_zoomed.png")
 
 if __name__ == "__main__":
     main()
