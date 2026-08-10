@@ -1,4 +1,8 @@
+import os
+print("Starting supervisedml.py", flush=True)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
+print(tf.__version__, flush=True)
 from tensorflow import keras
 from tensorflow.keras.models import load_model
 from dataclasses import dataclass, field
@@ -9,12 +13,12 @@ import json
 import argparse
 import time
 import pprint
-import os
+
 from typing import List, Tuple, Callable
 
 from train_data_creation import OnTheFlySpectralDataGenerator, VOL_O
+print("Finished imports", flush=True)
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 tf.get_logger().setLevel('ERROR')
 
 def KL_kernel_Momentum(
@@ -335,7 +339,7 @@ class networkTrainer:
             self, 
             dat: tf.data.Dataset,
             verbose: bool = False,
-            samples_per_epoch: int = 6 * 10**5,
+            samples_per_epoch: int = 5 * 10**5,
             batch_size: int = 128,
             ):
         train_losses = []
@@ -356,7 +360,7 @@ class networkTrainer:
             total_loss_value = self.train_step(corr=corr, err=err, rho_true = rho_true)
             train_losses.append(total_loss_value.numpy())
             if verbose and step % 50 == 0:
-                print(f'Batch {step}/{steps_per_epoch}, Loss: {total_loss_value}')
+                print(f'Batch {step}/{steps_per_epoch}, Loss: {total_loss_value}', flush=True)
         return train_losses
 
     def train(
@@ -364,7 +368,7 @@ class networkTrainer:
             num_epochs: int, 
             train_dat: tf.data.Dataset,
             verbose: bool = False,
-            samples_per_epoch: int = 6 * 10**5,
+            samples_per_epoch: int = 5 * 10**5,
             batch_size: int = 128,
             start_epoch: int = 0
             ) -> List[tf.Tensor]:
@@ -372,11 +376,11 @@ class networkTrainer:
         net_num_epochs = num_epochs - start_epoch
 
         if verbose:
-            print(f'Training for {net_num_epochs} epochs')
+            print(f'Training for {net_num_epochs} epochs', flush=True)
             start_time = time.time()
         for epoch in range(start_epoch, start_epoch + num_epochs):
             if verbose:
-                print(f'\nStart of epoch %d' %(epoch,))
+                print(f'\nStart of epoch %d' %(epoch,), flush=True)
             train_losses = self.trainloop(train_dat, verbose, samples_per_epoch, batch_size)
             t_losses.append(tf.reduce_sum(train_losses))
 
@@ -493,7 +497,7 @@ class supervisedFit:
             noise = np.stack([s["noise"] for s in test_set]).astype(np.float32)
 
             rho_pred = model(corr)
-            total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise)
+            total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
             return total_loss_value
 
 
@@ -530,14 +534,15 @@ class supervisedFit:
         seed = None
         root_seed = np.random.SeedSequence(seed)
         train_seed, test_seed = root_seed.spawn(2)
-        gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=3,
+        ### for now only single peaked breit wigners
+        gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=1,
                                             noise_width=data_noise, seed=train_seed)
         train_dat = gen.as_tf_dataset(batch_size=self.batch_size)
 
         test_set = gen.sample_fixed_set(n_samples = 1000, seed=test_seed)
 
         if verbose:
-            print("Loaded the dataset")
+            print("Loaded the dataset", flush=True)
 
         trainer = networkTrainer(model, optimizer, lossCalc)
         for lambda_s, lambda_l2, epochs in zip(self.lambda_s, self.lambda_l2, self.epochs):
@@ -545,15 +550,15 @@ class supervisedFit:
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
             t_loss_history_tmp = trainer.train(
-                epochs, train_dat, verbose=verbose, samples_per_epoch=6 * 10**5, batch_size=self.batch_size
+                epochs, train_dat, verbose=verbose, samples_per_epoch=5 * 10**5, batch_size=self.batch_size
                 )
             training_loss_history.extend(t_loss_history_tmp)
             if verbose:
-                print("-" * 40)
+                print("-" * 40, flush=True)
         
         test_loss = eval_on_test_set(model, lossCalc, test_set)
         if verbose:
-            print(f"Test loss on fixed set: {test_loss.numpy()}")
+            print(f"Test loss on fixed set: {test_loss.numpy()}", flush=True)
             
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
@@ -711,9 +716,9 @@ class FitRunner:
             training_loss_histories: List[np.ndarray]
             ) -> None:
         start_time = time.time()
-        print("=" * 40)
-        print(messageString)
-        print("=" * 40)
+        print("=" * 40, flush=True)
+        print(messageString, flush=True)
+        print("=" * 40, flush=True)
         sf, t_loss_history, modelname = self.fitter.fitCorrelator(
             self.x,
             self.error,
@@ -726,8 +731,8 @@ class FitRunner:
             verbose=self.verbose
         )
         if self.verbose:
-            print("-" * 40)
-            print(f"Training time: {time.time() - start_time:.2f} seconds")
+            print("-" * 40, flush=True)
+            print(f"Training time: {time.time() - start_time:.2f} seconds", flush=True)
         results.append(sf)
         training_loss_histories.append(t_loss_history)
         return modelname
@@ -740,9 +745,9 @@ class FitRunner:
             loss_histories: List[np.ndarray], 
             model_file: str
             ) -> None:
-        print("=" * 40)
-        print(messageString)
-        print("=" * 40)
+        print("=" * 40, flush=True)
+        print(messageString, flush=True)
+        print("=" * 40, flush=True)
         spectralFunction, total_loss = self.fitter.fit_known(
             self.x,
             self.error,
@@ -754,7 +759,7 @@ class FitRunner:
             extractedQuantity=self.extractedQuantity,
         )
         if self.verbose:
-            print("-" * 40)
+            print("-" * 40, flush=True)
         results.append(np.squeeze(spectralFunction))
         loss_histories.append(np.insert(np.array([]), 0, np.array(total_loss)))
     
@@ -775,6 +780,7 @@ class FitRunner:
                 self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, pred_loss_histories, self.parameterHandler.get_params()["model_file"])
         else:
             model_name = self.run_fit(self.mean, "Fitting mean correlator", results, training_loss_histories)
+            ### pred_res currently doesnt include a loss function but this is fine for testing purposes
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, pred_loss_histories, model_name)
         np.array(training_loss_histories)
@@ -877,11 +883,12 @@ def main(
     parameterHandler.load_params(args.config,args)
 
     if parameterHandler.get_verbose():
-        print("*"*40)
-        print("Running fits with the following parameters:")
+        print("*"*40, flush=True)
+        print("Running fits with the following parameters:", flush=True)
         pprint.pprint(parameterHandler.get_params())
 
     fitRunner = FitRunner(parameterHandler)
+    print("Created FitRunner", flush=True)
     results, training_loss_histories, pred_loss_histories = fitRunner.run_fits()
     mean = results[0]
     if len(results)>1:

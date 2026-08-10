@@ -40,6 +40,6 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": false,
-    "clusterpath": ""
+    "cluster": true,
+    "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/"
 }

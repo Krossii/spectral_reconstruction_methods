@@ -199,6 +199,13 @@ def call_method_programs(
     if parameterHandler.get_params()["Method"] == "SupervisedNN" or parameterHandler.get_params()["Method"] == "KadesFC" or parameterHandler.get_params()["Method"] == "KadesConv":
         if parameterHandler.get_params()["cluster"]:
             working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "supervised_ml/")
+            print(f"Launching supervisedml.py from {working_dir}", flush=True)
+            print(f"Python executable: {sys.executable}", flush=True)
+            print(f"Working directory exists: {os.path.isdir(working_dir)}", flush=True)
+            print(
+                f"Script exists: {os.path.isfile(os.path.join(working_dir, 'supervisedml.py'))}",
+                flush=True,
+            )
             os.chdir(working_dir)
             os.execv(sys.executable, [sys.executable, "supervisedml.py", "--config", "params.json"])
         else:
