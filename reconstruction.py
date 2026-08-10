@@ -112,8 +112,7 @@ class ParameterHandler:
             cluster_path = self.get_params()["clusterpath"]
         if self.params["Method"] == "UnsupervisedNN":
             black_list_vals = set((
-                "Method", "batch_size", "create_data","data_noise", "trainingFile", 
-                "validationFile", "optimizer", "variance", "model_file",
+                "Method", "batch_size", "data_noise", "optimizer", "variance", "model_file",
                 "lengthscale", "alpha_min", "alpha_max",
                 "alpha_points", "default_model","eval_model", "default_model_file", "precision", "lamb", "smearing"
                 ))
@@ -126,7 +125,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "SupervisedNN" or self.params["Method"] == "KadesFC" or self.params["Method"] == "KadesConv":
             black_list_vals = set((
-                "Method", "width","saveWeightHistograms", "create_data","data_noise", "optimizer",
+                "Method", "width","saveWeightHistograms", "optimizer",
                 "variance", "lengthscale", "alpha_min", "alpha_max",
                 "alpha_points", "default_model", "multiFit", "default_model_file", "precision", "lamb", "smearing"
                 ))
@@ -141,7 +140,7 @@ class ParameterHandler:
             black_list_vals = set((
                 "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
-                "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
+                "batch_size", "data_noise",
                 "saveLossHistory", "alpha_min", "alpha_max",
                 "alpha_points", "default_model", "default_model_file", "precision", "lamb", "smearing"
                 ))
@@ -155,7 +154,7 @@ class ParameterHandler:
             black_list_vals = set((
                 "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
-                "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
+                "batch_size", "data_noise",
                 "saveLossHistory", "optimizer", "variance", "lengthscale", "precision", "lamb", "smearing"
                 ))
             cleaned_dict = self.get_blacklisted_dict(black_list_vals)
@@ -168,7 +167,7 @@ class ParameterHandler:
             black_list_vals = set((
                 "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
-                "batch_size", "create_data","data_noise", "trainingFile", "validationFile",
+                "batch_size", "data_noise",
                 "saveLossHistory", "optimizer", "variance", "lengthscale","alpha_min", "alpha_max",
                 "alpha_points", "default_model", "default_model_file"
                 ))
@@ -178,25 +177,6 @@ class ParameterHandler:
                 subpath = os.path.join(cluster_path, subpath)
             with open(subpath, "w") as f:
                 json.dump(cleaned_dict, f, indent=4)
-
-def call_create_data_program(
-        parameterHandler: ParameterHandler
-        ):
-    if parameterHandler.get_verbose():
-        print("*"*40)
-        print("Checking for create_data:")
-        print(parameterHandler.get_params()["create_data"])
-
-    if parameterHandler.get_params()["create_data"]:
-
-        if parameterHandler.get_params()["cluster"]:
-            working_dir = os.path.join(parameterHandler.get_params()["clusterpath"], "supervised_ml/")
-        else:
-            working_dir = "supervised_ml/"
-        subprocess.Popen(["python", "create_data.py", "--config", "../params.json"], cwd=working_dir).communicate()
-        if parameterHandler.get_verbose():
-            print("*"*40)
-            print("Successfully ran data creation.")
 
 
 def call_method_programs(
@@ -259,7 +239,6 @@ def main(
     args = parser.parse_args()
     parameterHandler = ParameterHandler(paramsDefaultDict)
     parameterHandler.load_params(args.config, args)
-    call_create_data_program(parameterHandler)
     parameterHandler.write_new_json()
     call_method_programs(parameterHandler)
 
@@ -279,10 +258,7 @@ paramsDefaultDict = {
     "saveWeightHistograms": False,
     #Supervised specific
     "batch_size": 128,
-    "create_data": False,
     "data_noise": 10e-5,
-    "trainingFile": "",
-    "validationFile": "",
     "eval_model": False,
     "model_file": "",
     #Gaussian specific
