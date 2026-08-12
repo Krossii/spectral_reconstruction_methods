@@ -339,7 +339,7 @@ class networkTrainer:
             self, 
             dat: tf.data.Dataset,
             verbose: bool = False,
-            samples_per_epoch: int = 5 * 10**5,
+            samples_per_epoch: int = 4 * 10**5,
             batch_size: int = 128,
             ):
         train_losses = []
@@ -368,7 +368,7 @@ class networkTrainer:
             num_epochs: int, 
             train_dat: tf.data.Dataset,
             verbose: bool = False,
-            samples_per_epoch: int = 5 * 10**5,
+            samples_per_epoch: int = 4 * 10**5,
             batch_size: int = 128,
             start_epoch: int = 0
             ) -> List[tf.Tensor]:
@@ -498,6 +498,11 @@ class supervisedFit:
 
             rho_pred = model(corr)
             total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
+            plt.figure()
+            plt.plot(rho_pred[0], label="Predicted")
+            plt.plot(fct[0], label="True")
+            plt.legend()
+            plt.savefig("test_set_comparison.png")
             return total_loss_value
 
 
@@ -550,7 +555,7 @@ class supervisedFit:
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
             t_loss_history_tmp = trainer.train(
-                epochs, train_dat, verbose=verbose, samples_per_epoch=5 * 10**5, batch_size=self.batch_size
+                epochs, train_dat, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
                 )
             training_loss_history.extend(t_loss_history_tmp)
             if verbose:

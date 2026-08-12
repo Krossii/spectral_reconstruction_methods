@@ -21,8 +21,7 @@ Kades et al., "Spectral Reconstruction with Deep Neural Networks"
 
 Because every batch is freshly sampled from a continuous parameter space,
 the same (theta, epsilon) pair is essentially never repeated across
-training -- this is what the paper means when it says the risk of
-overfitting is "practically non-existent" (Sec. III A).
+training.
 """
 
 import numpy as np
@@ -119,12 +118,8 @@ VOL_O = ParameterVolume()
 
 class OnTheFlySpectralDataGenerator:
     """
-    Draws fresh (rho, G_noisy, sigma) samples on every call instead of
-    reading a fixed dataset from disk. Use `as_tf_dataset` for training
-    and `sample_fixed_set` to build a reproducible, held-out test set
-    (the paper does use a fixed set of 1000 samples per BW count for
-    benchmarking -- it's only the *training* data that's generated
-    on the fly).
+    Draws fresh (rho, G_noisy, sigma) samples on every call. Use `as_tf_dataset` for training
+    and `sample_fixed_set` to build a reproducible, held-out test set.
     """
 
     def __init__(
@@ -205,8 +200,8 @@ class OnTheFlySpectralDataGenerator:
     def sample_fixed_set(self, n_samples: int, seed: int = 0) -> List[Dict[str, np.ndarray]]:
         """
         Build a reproducible, fixed-size set (for validation/testing, or if
-        you want a deterministic benchmark set like the paper's 1000-sample
-        test sets per BW count in Appendix C). Uses its own seeded RNG so
+        one wants a deterministic benchmark set like a 1000-sample
+        test sets per BW count). Uses its own seeded RNG so
         results don't depend on how many training batches were already drawn.
         """
         local = OnTheFlySpectralDataGenerator(
