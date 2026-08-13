@@ -1,0 +1,66 @@
+Start 2026-08-13 10:16:33 | 14266 supervised_spec_rec | v08.clusternet | /work/home/candratschke/spectral_reconstruction_methods 
+
+****************************************
+Calling program for method:
+KadesFC
+Launching supervisedml.py from /work/home/candratschke/spectral_reconstruction_methods/supervised_ml/
+Python executable: /work/home/candratschke/.venv/bin/python
+Working directory exists: True
+Script exists: True
+Starting supervisedml.py
+2.21.0
+Finished imports
+****************************************
+Running fits with the following parameters:
+{'FiniteT_kernel': False,
+ 'Nt': 36,
+ 'batch_size': 128,
+ 'correlatorCols': '3:',
+ 'correlatorFile': '../dat/data_wilson_emconduc_24_36_b5.845_B2_x.txt',
+ 'data_noise': 0.001,
+ 'epochs': [80],
+ 'errorCol': 2,
+ 'errorWeighting': True,
+ 'errormethod': 'jackknife',
+ 'eval_model': False,
+ 'extractedQuantity': 'Rho',
+ 'lambda_l2': [0.0001, 6.66754659e-08, 6.66754659e-08],
+ 'lambda_s': [1e-06, 3.55323189e-05, 3.55323189e-05],
+ 'learning_rate': [1e-05],
+ 'meanCol': 1,
+ 'model_file': '',
+ 'networkStructure': 'KadesFC',
+ 'omega_max': 10,
+ 'omega_min': 0,
+ 'omega_points': 500,
+ 'outputDir': './outputs/',
+ 'outputFile': '',
+ 'saveLossHistory': True,
+ 'saveParams': True,
+ 'verbose': True,
+ 'xCol': 0}
+Created FitRunner
+========================================
+Fitting mean correlator
+========================================
+Loaded the dataset
+Training for 80 epochs
+
+Start of epoch 0
+Batch 0/3125, Loss: 0.4119477868080139
+Batch 50/3125, Loss: 0.35389062762260437
+Batch 100/3125, Loss: 0.18763969838619232
+Batch 150/3125, Loss: 0.17770804464817047
+Batch 200/3125, Loss: 0.1480836421251297
+Batch 250/3125, Loss: 0.12261224538087845
+Batch 300/3125, Loss: 0.11164890974760056
+Batch 350/3125, Loss: 0.09743879735469818
+Batch 400/3125, Loss: 0.09956090897321701
+Batch 450/3125, Loss: 0.10090845823287964
+Batch 500/3125, Loss: 0.07697395235300064
+Batch 550/3125, Loss: 0.09699299931526184
+Batch 600/3125, Loss: 0.06428039073944092
+Batch 650/3125, Loss: 0.08768773078918457
+Batch 700/3125, Loss: 0.08286047726869583
+Batch 750/3125, Loss: 0.08288121223449707
+Batch 800/3125, Loss: 0.0962420105934143

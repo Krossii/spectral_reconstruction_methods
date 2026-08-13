@@ -498,11 +498,12 @@ class supervisedFit:
 
             rho_pred = model(corr)
             total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
-            plt.figure()
-            plt.plot(rho_pred[0], label="Predicted")
-            plt.plot(fct[0], label="True")
-            plt.legend()
-            plt.savefig("test_set_comparison.png")
+            for i in range(len(test_set)):
+                plt.figure()
+                plt.plot(rho_pred[i], label="Loss = {:.4f}".format(total_loss_value.numpy()))
+                plt.plot(fct[i], label="True")
+                plt.legend()
+                plt.savefig(f"test_set_comparison_{i}.png")
             return total_loss_value
 
 
@@ -539,8 +540,9 @@ class supervisedFit:
         seed = None
         root_seed = np.random.SeedSequence(seed)
         train_seed, test_seed = root_seed.spawn(2)
+        n_bw_max = 3
         ### for now only single peaked breit wigners
-        gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=1,
+        gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=n_bw_max,
                                             noise_width=data_noise, seed=train_seed)
         train_dat = gen.as_tf_dataset(batch_size=self.batch_size)
 
@@ -568,7 +570,7 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = '{}_Nt{}_{}.keras'.format(self.networkStructure, Nt)
+        modelname = '{}_Nt{}_nbw{}.keras'.format(self.networkStructure, Nt, n_bw_max)
         model.save(modelname) # save the model
         return np.squeeze(spectralFunction), np.average(training_loss_history, axis=1), modelname
     
