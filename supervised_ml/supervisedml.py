@@ -500,7 +500,7 @@ class supervisedFit:
             total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
             for i in range(len(test_set)):
                 plt.figure()
-                plt.plot(rho_pred[i], label="Loss = {:.4f}".format(total_loss_value.numpy()))
+                plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
                 plt.plot(fct[i], label="True")
                 plt.legend()
                 plt.savefig(f"test_set_comparison_{i}.png")
