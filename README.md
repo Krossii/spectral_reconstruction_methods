@@ -20,12 +20,11 @@ where `config.json` is a JSON file containing the parameters for the training (s
 
 ### Possible reconstruction methods
 
-- `MEM`: An implementation of MEM.
-- `Gaussian`: A pipeline to an application of GPR, linking to the library fredipy.
+- `MEM`: An implementation of the maximum entropy method (MEM) with extended search space.
 - `SupervisedNN`: A neural network that trains on certain input data and predicts the spectral function based on the learned connections.
-- `UnsupervisedNN`: A neural network using unsupervised learning developed in large by Laurin and Simran.
-
-All of the above take a constant input and and outputs all $\rho(\omega_i)$.
+- `UnsupervisedNN`: A neural network using unsupervised learning developed in large by Laurin Panullo and Simran Singh.
+- `HLT`: An implementation of the Hansen-Lupo-Tantalo method for spectral reconstruction implemented by Dean Valois
+- `Gaussian`: A pipeline to an application of GPR, linking to the library fredipy. (Under construction)
 
 
 ### Loss functions (specific for both AI methods)
@@ -89,8 +88,6 @@ If the `saveParams` parameter is set to `True`, the parameters used for the trai
 If the `saveLossHistory` parameter is set to `True`, the loss history will be saved to a file with the name `outputFile.loss.dat`. The columns of the file are the epoch number, the total loss, the correlator loss, the smoothness loss, and the L2 loss for the fit of the mean correlator. The following columns are these loss contributions for each of the fitted statistical samples.
 
 
-
-
 ## Parameters
 
 The following parameters can be specified in the JSON file or as command line arguments.
@@ -107,10 +104,7 @@ The following parameters can be specified in the JSON file or as command line ar
 | **width**            | `[32, 32, 32]`   | List of integers                  | Specific to `"UnsupervisedNN"`: Structure of the neural network. The length of the list sets the number of layers, while the values set the widths of the layers.  |
 | **saveWeightHistograms**            | `False`   | `True`, `False`                  | Specific to `"UnsupervisedNN"`: Whether to save the weight histogram or not.  |
 | **batch_size**        | `128`              | Any integer                         | Specific to `"SupervisedNN"`: The batch size for the training and validation sets. |
-| **create_data**        | `False`              | `True`,`False`                        | Specific to `"SupervisedNN"`: Wether to create new training and validation sets |
-| **data_noise**        | `10e-5`              | Any float                         | Specific to `"SupervisedNN"`: The noise on the created data. |
-| **trainingFile**        | `""`              | Any string                         | Specific to `"SupervisedNN"`: The file location of the training set |
-| **validationFile**        | `""`              | Any string                         | Specific to `"SupervisedNN"`: The file location of the validation set |
+| **data_noise**        | `10e-5`              | Any float                         | Specific to `"SupervisedNN"`: The additive gaussian noise of the training data. |
 | **eval_model**        | `False`              | `True`,`False`                         | Specific to `"SupervisedNN"`: If there is already a trained model available, which is to be evaluated on data. |
 | **model_file**        | `""`              | Any string                         | Specific to `"SupervisedNN"`: The file location of the model to be evaluated. |
 | **optimizer**        | `False`              | `True`, `False`                         | Specific to `"Gaussian"`: Wether the kernel parameters should be optimized with L-BFGS-B. |
@@ -162,10 +156,7 @@ Create a JSON file (e.g., `params.json`):
     "errorWeighting": true,
     "width": [32,32,32],
     "batch_size": 128,
-    "create_data": false,
     "data_noise": 10e-2,
-    "trainingFile": "",
-    "validationFile": "",
     "eval_model": false,
     "model_file": "",
     "optimizer": false,

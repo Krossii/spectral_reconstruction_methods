@@ -1,4 +1,8 @@
+import os
+print("Starting supervisedml.py", flush=True)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
+print(tf.__version__, flush=True)
 from tensorflow import keras
 from tensorflow.keras.models import load_model
 from dataclasses import dataclass, field
@@ -9,10 +13,12 @@ import json
 import argparse
 import time
 import pprint
-import os
+
 from typing import List, Tuple, Callable
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+from train_data_creation import OnTheFlySpectralDataGenerator, VOL_O
+print("Finished imports", flush=True)
+
 tf.get_logger().setLevel('ERROR')
 
 def KL_kernel_Momentum(
@@ -189,13 +195,13 @@ class SupervisedNN(
         super(SupervisedNN, self).__init__(**kwargs)
         self.num_output_nodes = num_output_nodes
         # Layer 1
-        self.hidden_layer1 = tf.keras.layers.Dense(6700, activation = 'elu')
+        self.hidden_layer1 = tf.keras.layers.Dense(6700, activation = 'relu')
         # Layer 2
-        self.hidden_layer2 = tf.keras.layers.Dense(12168, activation = 'elu')
+        self.hidden_layer2 = tf.keras.layers.Dense(12168, activation = 'relu')
         # Layer 3
-        self.hidden_layer3 = tf.keras.layers.Dense(1024, activation = 'elu')
+        self.hidden_layer3 = tf.keras.layers.Dense(1024, activation = 'relu')
         # Output layer
-        self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'softplus')
+        self.output_layer = tf.keras.layers.Dense(num_output_nodes, activation = 'relu')
 
     def call(
             self, 
@@ -290,14 +296,17 @@ class LossCalculator:
             y_pred: tf.Tensor = None,
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
-        y_pred = Di(self.kernel, rho, self.delomega)
-        main_loss = self.custom_loss(y_pred, err, y_true)
-        smooth_loss = self.smoothness_loss(rho)
-        l2_loss = self.l2_regularization()
+        """
+        staying true to Kades paper, for now only rho_loss will be considered (ofc this only works if the spf is known a priori)
+        """
+        #y_pred = Di(self.kernel, rho, self.delomega)
+        #main_loss = self.custom_loss(y_pred, err, y_true)
+        #smooth_loss = self.smoothness_loss(rho)
+        #l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
-        #total_loss_value = rho_loss
-        total_loss_value = main_loss + self.lambda_s * smooth_loss + self.lambda_l2 * l2_loss #+ rho_loss
-        return total_loss_value, [main_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss, rho_loss] ### maybe fix the passing here at some point
+        total_loss_value = rho_loss
+        #total_loss_value = main_loss + self.lambda_s * smooth_loss + self.lambda_l2 * l2_loss #+ rho_loss
+        return total_loss_value #[main_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss, rho_loss] 
 
 class networkTrainer:
     def __init__(
@@ -320,93 +329,62 @@ class networkTrainer:
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
             rho_pred = self.model(corr)
-            total_loss_value, individual_losses = self.loss_calculator.total_loss(rho=rho_pred, y_true = corr, err=err, rho_true = rho_true)
+            total_loss_value = self.loss_calculator.total_loss(rho=rho_pred, y_true = corr, err=err, rho_true = rho_true)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))    
-        return total_loss_value, individual_losses
-    
-    def test_step(
-            self, 
-            corr: tf.Tensor, 
-            err: tf.Tensor, 
-            rho_true: tf.Tensor = None
-            ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
-        rho = self.model(corr)
-        total_loss_value, individual_losses = self.loss_calculator.total_loss(rho=rho, y_true = corr, err= err, rho_true = rho_true)
-        return total_loss_value, individual_losses
+        return total_loss_value
 
     def trainloop(
             self, 
             dat: tf.data.Dataset,
-            verbose: bool = False
+            verbose: bool = False,
+            samples_per_epoch: int = 4 * 10**5,
+            batch_size: int = 128,
             ):
         train_losses = []
-        train_losses_ind = []
-        step = 0
+        steps_per_epoch = samples_per_epoch // batch_size
 
-        for step, (X, y, z) in enumerate(dat):
+        for step, (rho_true, corr, err) in enumerate(dat.take(steps_per_epoch)):
             if step == 0:  # only plot on first batch of each epoch
-                rho_pred=self.model(y)[0]
-                tau = np.arange(36) # hardcoded ... 
+                rho_pred=self.model(corr)[0]
+                tau = np.arange(36)
                 self.ax1.cla()
-                self.ax1.plot(X[0])
+                self.ax1.plot(rho_true[0])
                 self.ax1.plot(rho_pred)
                 self.ax2.cla()
-                self.ax2.scatter(tau, y[:][0], marker='x')
+                self.ax2.scatter(tau, corr[:][0], marker='x')
                 self.ax2.scatter(tau, Di(self.loss_calculator.kernel, rho_pred, self.loss_calculator.delomega), marker='o')
                 self.ax2.set_yscale('log')
                 self.fig.savefig("debug.png")
-            total_loss_value, individual_losses = self.train_step(corr=y, err=z, rho_true = X)
+            total_loss_value = self.train_step(corr=corr, err=err, rho_true = rho_true)
             train_losses.append(total_loss_value.numpy())
-            for i in range(len(individual_losses)):
-                individual_losses[i] = individual_losses[i].numpy()
-            train_losses_ind.append(individual_losses)
             if verbose and step % 50 == 0:
-                print(f'Batch {step}/{len(dat)}, Loss: {total_loss_value}, main: {individual_losses[0]}, smooth: {individual_losses[1]}, l2: {individual_losses[2]}, rho: {individual_losses[3]}')
-        return train_losses, train_losses_ind
-
-    def testloop(
-            self, 
-            dat: tf.data.Dataset,
-            verbose: bool = False
-            ):
-        test_losses = []
-        test_losses_ind = []
-        for X,y,z in dat:
-            total_loss_value, individual_losses = self.test_step(corr=y, err=z, rho_true = X)
-            test_losses.append(total_loss_value)
-            test_losses_ind.append(individual_losses)
-        if verbose:
-            print(f'Validation loss: {total_loss_value}')
-        return test_losses, test_losses_ind
+                print(f'Batch {step}/{steps_per_epoch}, Loss: {total_loss_value}', flush=True)
+        return train_losses
 
     def train(
             self, 
             num_epochs: int, 
             train_dat: tf.data.Dataset,
-            test_dat: tf.data.Dataset,
             verbose: bool = False,
+            samples_per_epoch: int = 4 * 10**5,
+            batch_size: int = 128,
             start_epoch: int = 0
-            ) -> Tuple[List[tf.Tensor], List[List[tf.Tensor]],List[tf.Tensor], List[List[tf.Tensor]]]:
-        t_losses, v_losses = [],[]
-        t_individual_losses, v_individual_losses = [],[]
+            ) -> List[tf.Tensor]:
+        t_losses = []
         net_num_epochs = num_epochs - start_epoch
 
         if verbose:
-            print(f'Training for {net_num_epochs} epochs')
+            print(f'Training for {net_num_epochs} epochs', flush=True)
             start_time = time.time()
         for epoch in range(start_epoch, start_epoch + num_epochs):
             if verbose:
-                print(f'\nStart of epoch %d' %(epoch,))
-            train_losses, train_losses_ind = self.trainloop(train_dat, verbose)
-            val_losses, val_losses_ind = self.testloop(test_dat, verbose)
+                print(f'\nStart of epoch %d' %(epoch,), flush=True)
+            train_losses = self.trainloop(train_dat, verbose, samples_per_epoch, batch_size)
             t_losses.append(tf.reduce_sum(train_losses))
-            t_individual_losses.append(tf.reduce_sum(train_losses_ind, axis=0))
-            v_losses.append(tf.reduce_sum(val_losses))
-            v_individual_losses.append(tf.reduce_sum(val_losses_ind, axis=0))
 
-        return t_losses, t_individual_losses, v_losses, v_individual_losses
+        return t_losses
     
 #Interface and runner classes
     
@@ -465,14 +443,6 @@ class supervisedFit:
             raise ValueError("Invalid choice spectral function target")
         return kernel
 
-    def get_data(
-            self, 
-            file_dir: str
-            )-> dict:
-        with open(file_dir, 'rb') as f:
-            file = np.load(f, allow_pickle=True)
-        return file
-            
     def fit_known(
             self, 
             x: np.ndarray, 
@@ -503,15 +473,10 @@ class supervisedFit:
             lambda_s_func=lambda x: self.lambda_s[0],
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
-        if len(self.learning_rate) == 1:
-            lr = self.learning_rate[0]
-        else:
-            lr = tf.keras.optimizers.schedules.PolynomialDecay(self.learning_rate[0], self.learning_rate[2], self.learning_rate[1], power=0.5)
-        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-        trainer = networkTrainer(model, optimizer, lossCalc)
-        total_loss, individual_loss = trainer.test_step(0, correlator, error)
+
         spectralFunction = model(correlator)
-        return np.squeeze(spectralFunction), total_loss, individual_loss
+        total_loss = lossCalc.total_loss(rho=spectralFunction, y_true = correlator, err=error)
+        return np.squeeze(spectralFunction), total_loss
 
     def fitCorrelator(
             self, 
@@ -520,12 +485,27 @@ class supervisedFit:
             correlator: np.ndarray, 
             finiteT_kernel: bool, 
             Nt: int, 
-            omega: np.ndarray, 
-            train_file: str, 
-            validation_file: str,
+            omega: np.ndarray,
+            data_noise: float = 1e-3,
             extractedQuantity: str = "RhoOverOmega", 
             verbose: bool = True
             ) -> Tuple[np.ndarray, np.ndarray]:
+
+        def eval_on_test_set(model, loss_calc, test_set):
+            fct = np.stack([s["fct"] for s in test_set]).astype(np.float32)
+            corr = np.stack([s["corr"] for s in test_set]).astype(np.float32)
+            noise = np.stack([s["noise"] for s in test_set]).astype(np.float32)
+
+            rho_pred = model(corr)
+            total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
+            for i in range(len(test_set)):
+                plt.figure()
+                plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
+                plt.plot(fct[i], label="True")
+                plt.legend()
+                plt.savefig(f"test_set_comparison_{i}.png")
+            return total_loss_value
+
 
         kernel = self.initKernel(extractedQuantity, finiteT_kernel, Nt, x, omega)
         del_omega = omega[1] - omega[0]
@@ -546,10 +526,7 @@ class supervisedFit:
         else:
             lr = tf.keras.optimizers.schedules.PolynomialDecay(self.learning_rate[0], self.learning_rate[2], self.learning_rate[1], power=0.5)
         optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-        training_total_loss_history = []
         training_loss_history = []
-        validation_total_loss_history = []
-        validation_loss_history = []
         
         lossCalc = LossCalculator(
             model=model,
@@ -560,49 +537,42 @@ class supervisedFit:
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
 
-        train_raw = self.get_data(train_file)
-        validation_raw = self.get_data(validation_file)
+        seed = None
+        root_seed = np.random.SeedSequence(seed)
+        train_seed, test_seed = root_seed.spawn(2)
+        n_bw_max = 3
+        ### for now only single peaked breit wigners
+        gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=n_bw_max,
+                                            noise_width=data_noise, seed=train_seed)
+        train_dat = gen.as_tf_dataset(batch_size=self.batch_size)
+
+        test_set = gen.sample_fixed_set(n_samples = 1000, seed=test_seed)
+
         if verbose:
-            print("Loaded the dataset")
-        #assume one file for training and validation each
-        train_fcts = tf.data.Dataset.from_tensor_slices(np.array([d['fct'] for d in train_raw]))
-        train_corrs = tf.data.Dataset.from_tensor_slices(np.array([d['corr'] for d in train_raw]))
-        train_errs = tf.data.Dataset.from_tensor_slices(np.array([d['noise'] for d in train_raw]))
+            print("Loaded the dataset", flush=True)
 
-        validation_fcts = tf.data.Dataset.from_tensor_slices(np.array([d['fct'] for d in validation_raw]))
-        validation_corrs = tf.data.Dataset.from_tensor_slices(np.array([d['corr'] for d in validation_raw]))
-        validation_errs = tf.data.Dataset.from_tensor_slices(np.array([d['noise'] for d in validation_raw]))
-
-        train_dat = tf.data.Dataset.zip((train_fcts, train_corrs, train_errs))
-        validation_dat = tf.data.Dataset.zip((validation_fcts, validation_corrs, validation_errs))
-    
-        train_dat = train_dat.shuffle(1000).batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
-        validation_dat = validation_dat.batch(self.batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
-        #maybe as a to do: checkpointing
         trainer = networkTrainer(model, optimizer, lossCalc)
-        for lambda_s, lambda_l2, learning_rate, epochs in zip(self.lambda_s, self.lambda_l2, self.learning_rate, self.epochs):
+        for lambda_s, lambda_l2, epochs in zip(self.lambda_s, self.lambda_l2, self.epochs):
             lossCalc.lambda_s.assign(lambda_s)
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
-            t_total_loss_history_tmp, t_loss_history_tmp, v_total_loss_history_tmp, v_loss_history_tmp = trainer.train(
-                epochs, train_dat, validation_dat, verbose=verbose
+            t_loss_history_tmp = trainer.train(
+                epochs, train_dat, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
                 )
-            training_total_loss_history.extend(t_total_loss_history_tmp)
             training_loss_history.extend(t_loss_history_tmp)
-            validation_total_loss_history.extend(v_total_loss_history_tmp)
-            validation_loss_history.extend(v_loss_history_tmp)
             if verbose:
-                print("-" * 40)
+                print("-" * 40, flush=True)
+        
+        test_loss = eval_on_test_set(model, lossCalc, test_set)
+        if verbose:
+            print(f"Test loss on fixed set: {test_loss.numpy()}", flush=True)
+            
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = '{}_Nt{}_{}.keras'.format(self.networkStructure, Nt, train_file[-10:-4])
+        modelname = '{}_Nt{}_nbw{}.keras'.format(self.networkStructure, Nt, n_bw_max)
         model.save(modelname) # save the model
-        training_total_loss_history = np.expand_dims(training_total_loss_history, axis=-1)
-        train_loss = np.concatenate((np.squeeze(training_loss_history), training_total_loss_history), axis = 1)
-        validation_total_loss_history = np.expand_dims(validation_total_loss_history, axis=-1)
-        val_loss = np.concatenate((np.squeeze(validation_loss_history),validation_total_loss_history), axis=1)
-        return np.squeeze(spectralFunction), np.average(val_loss, axis=1), np.average(train_loss, axis=1), modelname
+        return np.squeeze(spectralFunction), np.average(training_loss_history, axis=1), modelname
     
 class ParameterHandler:
     def __init__(
@@ -677,11 +647,6 @@ class ParameterHandler:
             self
             ) -> str:
         return os.path.abspath(self.params["correlatorFile"])
-    
-    def get_training_validation_files(
-            self
-            )-> str:
-        return os.path.abspath(self.params["trainingFile"]), os.path.abspath(self.params["validationFile"])
 
     def get_verbose(
             self
@@ -727,7 +692,7 @@ class FitRunner:
             self.parameterHandler.get_params()["omega_max"],
             self.parameterHandler.get_params()["omega_points"]
         )
-        self.trainfile, self.validationfile = self.parameterHandler.get_training_validation_files()
+        self.data_noise = self.parameterHandler.get_params()["data_noise"]
         self.finiteT_kernel = self.parameterHandler.get_params()["FiniteT_kernel"]
         self.verbose = self.parameterHandler.get_verbose()
         self.extractedQuantity = self.parameterHandler.get_extractedQuantity()
@@ -755,31 +720,28 @@ class FitRunner:
             fittedQuantity, 
             messageString,
             results: List[np.ndarray], 
-            validation_loss_histories: List[np.ndarray],
             training_loss_histories: List[np.ndarray]
             ) -> None:
         start_time = time.time()
-        print("=" * 40)
-        print(messageString)
-        print("=" * 40)
-        sf, v_loss_history, t_loss_history, modelname = self.fitter.fitCorrelator(
+        print("=" * 40, flush=True)
+        print(messageString, flush=True)
+        print("=" * 40, flush=True)
+        sf, t_loss_history, modelname = self.fitter.fitCorrelator(
             self.x,
             self.error,
             fittedQuantity,
             self.finiteT_kernel,
             self.Nt,
             self.omega,
-            self.trainfile,
-            self.validationfile,
+            self.data_noise,
             extractedQuantity=self.extractedQuantity,
             verbose=self.verbose
         )
         if self.verbose:
-            print("-" * 40)
-            print(f"Training time: {time.time() - start_time:.2f} seconds")
+            print("-" * 40, flush=True)
+            print(f"Training time: {time.time() - start_time:.2f} seconds", flush=True)
         results.append(sf)
         training_loss_histories.append(t_loss_history)
-        validation_loss_histories.append(v_loss_history)
         return modelname
 
     def pred_res(
@@ -790,10 +752,10 @@ class FitRunner:
             loss_histories: List[np.ndarray], 
             model_file: str
             ) -> None:
-        print("=" * 40)
-        print(messageString)
-        print("=" * 40)
-        spectralFunction, total_loss, individual_loss = self.fitter.fit_known(
+        print("=" * 40, flush=True)
+        print(messageString, flush=True)
+        print("=" * 40, flush=True)
+        spectralFunction, total_loss = self.fitter.fit_known(
             self.x,
             self.error,
             fittedQuantity,
@@ -804,15 +766,14 @@ class FitRunner:
             extractedQuantity=self.extractedQuantity,
         )
         if self.verbose:
-            print("-" * 40)
+            print("-" * 40, flush=True)
         results.append(np.squeeze(spectralFunction))
-        loss_histories.append(np.insert(np.array(individual_loss), 0, np.array(total_loss)))
+        loss_histories.append(np.insert(np.array([]), 0, np.array(total_loss)))
     
     def run_fits(
             self
             ) -> Tuple[np.ndarray, np.ndarray]:
         results = []
-        validation_loss_histories = []
         training_loss_histories = []
         pred_loss_histories = []
         if self.correlators.ndim == 1:
@@ -825,13 +786,13 @@ class FitRunner:
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, pred_loss_histories, self.parameterHandler.get_params()["model_file"])
         else:
-            model_name = self.run_fit(self.mean, "Fitting mean correlator", results, validation_loss_histories, training_loss_histories)
+            model_name = self.run_fit(self.mean, "Fitting mean correlator", results, training_loss_histories)
+            ### pred_res currently doesnt include a loss function but this is fine for testing purposes
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, pred_loss_histories, model_name)
-        np.array(validation_loss_histories)
         np.array(training_loss_histories)
         np.array(pred_loss_histories)
-        return np.array(results), np.squeeze(training_loss_histories), np.squeeze(validation_loss_histories), np.squeeze(pred_loss_histories)
+        return np.array(results), np.squeeze(training_loss_histories), np.squeeze(pred_loss_histories)
 
     def calculate_mean_error(
             self, 
@@ -851,7 +812,6 @@ class FitRunner:
             error: np.ndarray, 
             samples: np.ndarray, 
             training_loss_history: np.ndarray, 
-            validation_loss_history: np.ndarray, 
             pred_loss_history: np.ndarray
             ) -> None:
         header = "Omega " + self.extractedQuantity + "_mean"
@@ -867,7 +827,6 @@ class FitRunner:
             self.save_params(self.parameterHandler.get_params(), os.path.join(self.outputDir, self.outputFile + ".params"))
         if self.parameterHandler.get_params()["saveLossHistory"]:
             self.save_loss_history(training_loss_history, os.path.join(self.outputDir, self.outputFile + ".trainloss.dat"))
-            self.save_loss_history(validation_loss_history, os.path.join(self.outputDir, self.outputFile + ".valloss.dat"))
             self.save_loss_history(pred_loss_history, os.path.join(self.outputDir, self.outputFile + ".predloss.dat"))
 
     def save_loss_history(
@@ -875,9 +834,9 @@ class FitRunner:
             loss_history: np.ndarray, 
             outputFile: str
             ) -> None:
-        header = "mean_total_loss mean_main_loss mean_smoothness_loss mean_l2_loss"
+        header = "mean_total_loss"
         for i in range(len(loss_history[1:])):
-            header += f" sample_{i}_total_loss sample_{i}_main_loss sample_{i}_smoothness_loss sample_{i}_l2_loss"
+            header += f" sample_{i}_total_loss"
         reshaped_loss_history = np.squeeze(loss_history)
         np.savetxt(outputFile, reshaped_loss_history, header=header)
 
@@ -931,12 +890,13 @@ def main(
     parameterHandler.load_params(args.config,args)
 
     if parameterHandler.get_verbose():
-        print("*"*40)
-        print("Running fits with the following parameters:")
+        print("*"*40, flush=True)
+        print("Running fits with the following parameters:", flush=True)
         pprint.pprint(parameterHandler.get_params())
 
     fitRunner = FitRunner(parameterHandler)
-    results, training_loss_histories, validation_loss_histories, pred_loss_histories = fitRunner.run_fits()
+    print("Created FitRunner", flush=True)
+    results, training_loss_histories, pred_loss_histories = fitRunner.run_fits()
     mean = results[0]
     if len(results)>1:
         samples = results[1:]
@@ -944,7 +904,7 @@ def main(
     else:
         samples = None
         error = None
-    fitRunner.save_results(mean,error,samples,training_loss_histories,validation_loss_histories, pred_loss_histories)
+    fitRunner.save_results(mean,error,samples,training_loss_histories, pred_loss_histories)
 
 
 
@@ -959,10 +919,9 @@ paramsDefaultDict = {
     "errorWeighting": True,
     #Supervised specific
     "batch_size": 128,
-    "trainingFile": "",
-    "validationFile": "",
     "eval_model": False,
     "model_file": "",
+    "data_noise": 1e-3,
     #Correlator/Rho params
     "omega_min": 0,
     "omega_max": 10,
