@@ -34,7 +34,7 @@
     "extractedQuantity": "RhoOverOmega",
     "FiniteT_kernel": false,
     "multiFit": false,
-    "correlatorFile": "../dat/data_wilson_emconduc_24_36_b5.845_B10_x.txt",
+    "correlatorFile": "../dat/data_wilson_emconduc_24_36_b5.845_B12_x.txt",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
