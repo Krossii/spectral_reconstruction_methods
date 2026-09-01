@@ -498,7 +498,7 @@ class supervisedFit:
 
             rho_pred = model(corr)
             total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
-            for i in range(len(test_set)):
+            for i in range(int(len(test_set)//100)):
                 plt.figure()
                 plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
                 plt.plot(fct[i], label="True")
@@ -572,7 +572,7 @@ class supervisedFit:
         spectralFunction = model(correlator)
         modelname = '{}_Nt{}_nbw{}.keras'.format(self.networkStructure, Nt, n_bw_max)
         model.save(modelname) # save the model
-        return np.squeeze(spectralFunction), np.average(training_loss_history, axis=1), modelname
+        return np.squeeze(spectralFunction), training_loss_history, modelname
     
 class ParameterHandler:
     def __init__(
