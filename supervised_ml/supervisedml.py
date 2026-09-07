@@ -348,7 +348,7 @@ class networkTrainer:
         for step, (rho_true, corr, err) in enumerate(dat.take(steps_per_epoch)):
             if step == 0:  # only plot on first batch of each epoch
                 rho_pred=self.model(corr)[0]
-                tau = np.arange(36)
+                tau = np.arange(len(corr[:][0]))
                 self.ax1.cla()
                 self.ax1.plot(rho_true[0])
                 self.ax1.plot(rho_pred)
@@ -541,10 +541,12 @@ class supervisedFit:
         root_seed = np.random.SeedSequence(seed)
         train_seed, test_seed = root_seed.spawn(2)
         n_bw_max = 3
-        ### for now only single peaked breit wigners
         gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=n_bw_max,
                                             noise_width=data_noise, seed=train_seed)
         train_dat = gen.as_tf_dataset(batch_size=self.batch_size)
+        ### just for now to confirm: cache the training dataset to avoid regeneration each epoch
+        train_dat = train_dat.cache()
+
 
         test_set = gen.sample_fixed_set(n_samples = 1000, seed=test_seed)
 
@@ -556,8 +558,10 @@ class supervisedFit:
             lossCalc.lambda_s.assign(lambda_s)
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
+            ### Repeat the dataset for the number of epochs 
+            train_dat_repeated = train_dat.repeat(epochs)
             t_loss_history_tmp = trainer.train(
-                epochs, train_dat, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
+                epochs, train_dat_repeated, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
                 )
             training_loss_history.extend(t_loss_history_tmp)
             if verbose:
@@ -570,7 +574,7 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = '{}_Nt{}_nbw{}.keras'.format(self.networkStructure, Nt, n_bw_max)
+        modelname = '{}_Nt{}_nbw{}_fixed.keras'.format(self.networkStructure, Nt, n_bw_max)
         model.save(modelname) # save the model
         return np.squeeze(spectralFunction), training_loss_history, modelname
     
