@@ -309,7 +309,7 @@ class loading:
         
         predicted_spf = np.zeros(len(self.w))
         spf_var = np.zeros(len(self.w))
-        spf_data = np.loadtxt(f"supervised_ml/outputs/{extr_Q}_mock_corr_BW_Nt{self.Nt}_noise{self.kwargs['noise'][0]}.dat")
+        spf_data = np.loadtxt(f"{self.home_path}/spec_rec_methods/supervised_ml/outputs/{extr_Q}_mock_corr_BW_Nt{self.Nt}_noise{self.kwargs['noise'][0]}.dat")
         predicted_spf = spf_data[:,1]
         spf_var = spf_data[:,2]
 
@@ -547,6 +547,7 @@ class plotting:
 
     def plotting_ml(
             self,
+            rho_input,
             rho_learned, 
             rho_err, 
             G_exact, 
@@ -556,6 +557,7 @@ class plotting:
             ) -> None:
         plt.figure(figsize=(12, 4))
         plt.subplot(1, 2, 1)
+        plt.plot(self.w, np.squeeze(rho_input), label='True ρ', color='cornflowerblue')
         plt.plot(self.w, np.squeeze(rho_learned), label="Reconstructed ρ", color="tomato")
         plt.fill_between(self.w, np.squeeze(rho_learned) - np.squeeze(rho_err), np.squeeze(rho_learned) + np.squeeze(rho_err), color = "tomato", alpha = 0.5)
         plt.legend()
@@ -1001,7 +1003,7 @@ class latticedata:
     
 
 def main():
-    lattice_data = True
+    lattice_data = False
 
     if lattice_data:
         latdat = latticedata(6, "z", 0.4, 24, 36)
@@ -1018,17 +1020,17 @@ def main():
         comparison = False # to be implemented: whether to compare the methods in one plot or just one method at a time
 
         home_path = "/home/Christian/Desktop" # home path to the data, should contain the "mock-data-main" folder with the mock data and the "spectral_reconstruction_methods" folder
-        method = "mem" # method to load and plot, can be "MEM", "BG", "Gaussian", "Unsupervised" or "Supervised"
+        method = "Supervised" # method to load and plot, can be "MEM", "BG", "Gaussian", "Unsupervised" or "Supervised"
         defmod = "file" # default model for MEM, only relevant if method == "MEM", can be "constant", "quadratic" or "file"
 
-        finite_T = True # Finite T or zero T kernel
+        finite_T = False # Finite T or zero T kernel
         temp = "finite_T" if finite_T else "zero_T"
-        extr_Q = "RhoOverOmega" # Rho or RhoOverOmega, might differ for different reconstruction methods
+        extr_Q = "Rho" # Rho or RhoOverOmega, might differ for different reconstruction methods
 
-        Nt = 16 # number of points in the temporal direction
+        Nt = 36 # number of points in the temporal direction
 
         mock_data = True # whether to use mock data or real lattice data
-        noise = [2,3,4] # [2,3,4] # noise levels to compare in the plots
+        noise = [4] # [2,3,4] # noise levels to compare in the plots
         N_samples = 10 # number of jackknife samples used in the reconstructions
 
         B_field = 12 # only relevant for finite T, finite B dataset
@@ -1064,7 +1066,8 @@ def main():
             G_input_err = G_input_data[:,2]
 
         ld = loading(w, tau, Nt, finite_T, home_path, mock_data, noise = noise, function = function, N_samples = N_samples)
-        predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = ld.load_call("MEM", extr_Q, defmod)
+        predicted_spf_sup, spf_var_sup, G_output_sup, G_output_err_sup = ld.load_call("Supervised", extr_Q)
+        #predicted_spf_mem, spf_var_mem, G_output_mem, G_output_err_mem, default_model = ld.load_call("MEM", extr_Q, defmod)
         #predicted_spf_bg, spf_var_bg, G_output_bg, G_output_err_bg = ld.load_call("BG", extr_Q)
         #predicted_spf_gauss, spf_var_gauss, G_output_gauss, G_output_err_gauss = ld.load_call("Gaussian", extr_Q)
         #predicted_spf_unsup, spf_var_unsup, G_output_unsup, G_output_err_unsup = ld.load_call("Unsupervised", extr_Q)
@@ -1078,8 +1081,9 @@ def main():
             plot.comparing_mock(true_spf, predicted_spf_unsup, predicted_spf_bg[0][:], predicted_spf_mem[0][:], predicted_spf_gauss[0][:], spf_var_unsup, spf_var_bg[0][:], spf_var_mem[0][:], spf_var_gauss[0][:], 
             G_input[0][:], G_input_err[0][:], G_output_unsup, G_output_bg[0][:], G_output_mem[0][:], G_output_gauss[0][:], G_output_err_unsup, G_output_err_bg[0][:], G_output_err_mem[0][:], G_output_err_gauss[0][:])
         else:
+            plot.plotting_ml(true_spf, predicted_spf_sup, spf_var_sup, G_input[0][:], G_input_err[0][:], G_output_sup, G_output_err_sup)
             #plotting_BG_Gauss(true_spf, predicted_spf, spf_var, G_input[0][:], G_input_err[0][:], G_output, G_output_err)
-            plot.plotting_MEM(true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
+            #plot.plotting_MEM(true_spf, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
             #plot.mem_zoomed(w, predicted_spf_mem, spf_var_mem, G_input, G_input_err, G_output_mem, G_output_err_mem, default_model)
 
         if mock_data:
