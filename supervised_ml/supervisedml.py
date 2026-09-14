@@ -297,14 +297,15 @@ class LossCalculator:
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         """
-        staying true to Kades paper, for now only rho_loss will be considered (ofc this only works if the spf is known a priori)
+        included the loss on the correlator, for now in the same magnitude as the loss on the spectral function
         """
-        #y_pred = Di(self.kernel, rho, self.delomega)
-        #main_loss = self.custom_loss(y_pred, err, y_true)
+        if y_pred is None:
+            y_pred = Di(self.kernel, rho, self.delomega)
+        main_loss = self.custom_loss(y_pred, err, y_true)
         #smooth_loss = self.smoothness_loss(rho)
         #l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
-        total_loss_value = rho_loss
+        total_loss_value = rho_loss + main_loss
         #total_loss_value = main_loss + self.lambda_s * smooth_loss + self.lambda_l2 * l2_loss #+ rho_loss
         return total_loss_value #[main_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss, rho_loss] 
 
@@ -329,7 +330,7 @@ class networkTrainer:
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         with tf.GradientTape() as tape:
             rho_pred = self.model(corr)
-            total_loss_value = self.loss_calculator.total_loss(rho=rho_pred, y_true = corr, err=err, rho_true = rho_true)
+            total_loss_value = self.loss_calculator.total_loss(rho=rho_pred, y_true=corr, err=err, rho_true=rho_true)
         # Compute gradients and update weights
         gradients = tape.gradient(total_loss_value, self.model.trainable_weights)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))    
@@ -545,8 +546,7 @@ class supervisedFit:
                                             noise_width=data_noise, seed=train_seed)
         train_dat = gen.as_tf_dataset(batch_size=self.batch_size)
         ### just for now to confirm: cache the training dataset to avoid regeneration each epoch
-        train_dat = train_dat.cache()
-
+        #train_dat = train_dat.cache()
 
         test_set = gen.sample_fixed_set(n_samples = 1000, seed=test_seed)
 
@@ -554,16 +554,53 @@ class supervisedFit:
             print("Loaded the dataset", flush=True)
 
         trainer = networkTrainer(model, optimizer, lossCalc)
+
+        # Build variables before restoring so model and optimizer state can be matched.
+        model(tf.zeros((1, len(x)), dtype=tf.float32))
+        if hasattr(optimizer, "build"):
+            optimizer.build(model.trainable_variables)
+
+        checkpoint_step = tf.Variable(0, dtype=tf.int64, trainable=False, name="step")
+        ckpt = tf.train.Checkpoint(
+            step=checkpoint_step,
+            model=model,
+            optimizer=optimizer,
+        )
+        checkpoint_dir = os.path.join(os.getcwd(), "tf.ckpts")
+        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
+
+        if manager.latest_checkpoint:
+            ckpt.restore(manager.latest_checkpoint).assert_existing_objects_matched()
+            print("Restored from {}".format(manager.latest_checkpoint), flush=True)
+        else:
+            print("Initializing from scratch.", flush=True)
+
+        completed_epochs = int(checkpoint_step.numpy())
+        scheduled_epochs = 0
         for lambda_s, lambda_l2, epochs in zip(self.lambda_s, self.lambda_l2, self.epochs):
+            scheduled_epochs_end = scheduled_epochs + epochs
+            if completed_epochs >= scheduled_epochs_end:
+                scheduled_epochs = scheduled_epochs_end
+                if verbose:
+                    print("Skipping completed checkpoint block through epoch {}".format(scheduled_epochs_end), flush=True)
+                continue
+
+            epochs_to_train = epochs - max(0, completed_epochs - scheduled_epochs)
             lossCalc.lambda_s.assign(lambda_s)
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
             ### Repeat the dataset for the number of epochs 
-            train_dat_repeated = train_dat.repeat(epochs)
+            #train_dat_repeated = train_dat.repeat(epochs)
             t_loss_history_tmp = trainer.train(
-                epochs, train_dat_repeated, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
+                epochs_to_train, train_dat, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
                 )
             training_loss_history.extend(t_loss_history_tmp)
+            checkpoint_step.assign_add(epochs_to_train)
+            save_path = manager.save()
+            if verbose:
+                print("Saved checkpoint for step {}: {}".format(int(checkpoint_step), save_path), flush=True)
+            scheduled_epochs = scheduled_epochs_end
+
             if verbose:
                 print("-" * 40, flush=True)
         

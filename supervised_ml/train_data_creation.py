@@ -104,10 +104,12 @@ def breit_wigner(w: np.ndarray, a: float, m: float, g: float) -> np.ndarray:
 
 @dataclass
 class ParameterVolume:
-    A: Tuple[float, float] = (0.1, 1.0)
-    M: Tuple[float, float] = (0.5, 3.0)
-    Gamma: Tuple[float, float] = (0.1, 0.4)
-    delta_M: Tuple[float, float] = (0.0, 2.5)  # min/max mass separation, multi-peak only
+    # The omega grid is compressed from [0, 10] to [0, 2].
+    # A scales as s^2 for the Rho Breit-Wigner used below, with s = 0.2.
+    A: Tuple[float, float] = (0.004, 0.04)
+    M: Tuple[float, float] = (0.1, 0.6)
+    Gamma: Tuple[float, float] = (0.02, 0.08)
+    delta_M: Tuple[float, float] = (0.0, 0.5)  # min/max mass separation, multi-peak only
 
 
 VOL_O = ParameterVolume() 
@@ -215,7 +217,7 @@ class OnTheFlySpectralDataGenerator:
 
 if __name__ == "__main__":
     tau = np.linspace(0.0, 10.0, 100)   
-    omega = np.linspace(0.0, 10.0, 500) 
+    omega = np.linspace(0.0, 2.0, 500) 
 
     gen = OnTheFlySpectralDataGenerator(tau, omega, volume=VOL_O, n_bw_max=3,
                                          noise_width=1e-3, seed=0)
