@@ -575,7 +575,7 @@ class supervisedFit:
             model=model,
             optimizer=optimizer,
         )
-        checkpoint_dir = os.path.join(os.getcwd(), "tf.ckpts")
+        checkpoint_dir = os.path.join(os.getcwd(), "tf.ckpts_lg{}_ls{}_l2{}".format(self.lambda_g[0], self.lambda_s[0], self.lambda_l2[0]))
         manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
 
         if manager.latest_checkpoint:

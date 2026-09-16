@@ -1,4 +1,4 @@
-Start 2026-09-16 11:17:15 | 59735 supervised_spec_rec | v28.clusternet | /work/home/candratschke/spectral_reconstruction_methods 
+Start 2026-09-16 11:26:50 | 59737 supervised_spec_rec | v28.clusternet | /work/home/candratschke/spectral_reconstruction_methods 
 
 ****************************************
 Calling program for method:
@@ -49,18 +49,8 @@ Initializing from scratch.
 Training for 120 epochs
 
 Start of epoch 0
-Batch 0/4687, Loss: 4842.76708984375
-Batch 50/4687, Loss: 5061.9365234375
-Batch 100/4687, Loss: 3231.771484375
-Batch 150/4687, Loss: 1610.2562255859375
-Batch 200/4687, Loss: 641.5494995117188
-Batch 250/4687, Loss: 402.0292663574219
-Batch 300/4687, Loss: 263.44647216796875
-Batch 350/4687, Loss: 255.5337371826172
-Batch 400/4687, Loss: 181.14732360839844
-Batch 450/4687, Loss: 158.3546142578125
-Batch 500/4687, Loss: 118.48370361328125
-Batch 550/4687, Loss: 93.22505950927734
-Batch 600/4687, Loss: 86.76731872558594
-Batch 650/4687, Loss: 69.72065734863281
-Batch 700/4687, Loss: 77.45785522460938
+Batch 0/4687, Loss: 4686.05517578125
+Batch 50/4687, Loss: 4372.5302734375
+Batch 100/4687, Loss: 3352.0615234375
+Batch 150/4687, Loss: 1788.543212890625
+Batch 200/4687, Loss: 786.3423461914062
