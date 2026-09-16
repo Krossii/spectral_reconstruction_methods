@@ -105,6 +105,7 @@ class KadesFC(
         self.fc3 = tf.keras.layers.Dense(1024) 
         self.relu4 = tf.keras.layers.Activation('relu')
         self.fc4 = tf.keras.layers.Dense(num_output_nodes)
+        self.softplus = tf.keras.layers.Activation('softplus')
 
     def call(
             self, 
@@ -117,8 +118,10 @@ class KadesFC(
         x = self.relu3(x)
         x = self.fc3(x)
         x = self.relu4(x)
-        return self.fc4(x)
-    
+        x = self.fc4(x)
+        x = self.softplus(x)
+        return x
+
     def get_config(
             self
             ):
@@ -234,6 +237,7 @@ class LossCalculator:
             std=None,
             kernel: tf.Tensor=None,
             delomega: tf.Tensor =None,
+            lambda_g_func: Callable[[int], float]=lambda x:0.0,
             lambda_s_func: Callable[[int], float]=lambda x:0.0,
             lambda_l2_func: Callable[[int], float]=lambda x:0.0
             ):
@@ -245,6 +249,7 @@ class LossCalculator:
             self.std = tf.cast(self.std, dtype=tf.float32)
         self.kernel = kernel
         self.delomega = delomega
+        self.lambda_g = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self.lambda_s = tf.Variable(0.0, trainable=False, dtype=tf.float32)
         self.lambda_l2 = tf.Variable(0.0, trainable=False, dtype=tf.float32)
 
@@ -297,17 +302,17 @@ class LossCalculator:
             rho_true: tf.Tensor = None
             ) -> Tuple[tf.Tensor, List[tf.Tensor]]:
         """
-        included the loss on the correlator, for now in the same magnitude as the loss on the spectral function
+        computation of all of the loss functions relevant for the supervised architecture. total loss is combined of loss on the correlator,
+        loss on the spectral function, smoothness loss and l2 regularization.
         """
         if y_pred is None:
             y_pred = Di(self.kernel, rho, self.delomega)
         main_loss = self.custom_loss(y_pred, err, y_true)
-        #smooth_loss = self.smoothness_loss(rho)
-        #l2_loss = self.l2_regularization()
+        smooth_loss = self.smoothness_loss(rho)
+        l2_loss = self.l2_regularization()
         rho_loss = self.rho_loss(rho, rho_true) if rho_true is not None else 0.0
-        total_loss_value = rho_loss + main_loss
-        #total_loss_value = main_loss + self.lambda_s * smooth_loss + self.lambda_l2 * l2_loss #+ rho_loss
-        return total_loss_value #[main_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss, rho_loss] 
+        total_loss_value = rho_loss + self.lambda_g * main_loss + self.lambda_s * smooth_loss + self.lambda_l2 * l2_loss
+        return total_loss_value #[main_loss, rho_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss] 
 
 class networkTrainer:
     def __init__(
@@ -391,6 +396,7 @@ class networkTrainer:
     
 @dataclass
 class networkParameters:
+    lambda_g: List = field(default_factory=list)
     lambda_s: List = field(default_factory=list)
     lambda_l2: List = field(default_factory=list)
     epochs: List = field(default_factory=list)
@@ -402,7 +408,9 @@ class networkParameters:
     def __post_init__(
             self
             ):
-        # Ensure all entries in lambda_s, lambda_l2 and learning_rate are floats
+        # Ensure all entries in lambda_g, lambda_s, lambda_l2 and learning_rate are floats
+        if not all(isinstance(item, float) for item in self.lambda_g):
+            raise ValueError("All entries in lambda_g must be floats.")
         if not all(isinstance(item, float) for item in self.lambda_s):
             raise ValueError("All entries in lambda_s must be floats.")
         if not all(isinstance(item, float) for item in self.lambda_l2):
@@ -416,6 +424,7 @@ class supervisedFit:
     def __init__(
             self,networkParameters:networkParameters
             ):
+        self.lambda_g=networkParameters.lambda_g
         self.lambda_s=networkParameters.lambda_s
         self.lambda_l2=networkParameters.lambda_l2
         self.epochs=networkParameters.epochs
@@ -471,6 +480,7 @@ class supervisedFit:
             kernel=kernel,
             delomega=del_omega,
             std=errorWeight,
+            lambda_g_func=lambda x: self.lambda_g[0],
             lambda_s_func=lambda x: self.lambda_s[0],
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
@@ -534,6 +544,7 @@ class supervisedFit:
             kernel=kernel,
             delomega=del_omega,
             std=errorWeight,
+            lambda_g_func=lambda x: self.lambda_g[0],
             lambda_s_func=lambda x: self.lambda_s[0],
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
@@ -545,8 +556,6 @@ class supervisedFit:
         gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=n_bw_max,
                                             noise_width=data_noise, seed=train_seed)
         train_dat = gen.as_tf_dataset(batch_size=self.batch_size)
-        ### just for now to confirm: cache the training dataset to avoid regeneration each epoch
-        #train_dat = train_dat.cache()
 
         test_set = gen.sample_fixed_set(n_samples = 1000, seed=test_seed)
 
@@ -577,7 +586,7 @@ class supervisedFit:
 
         completed_epochs = int(checkpoint_step.numpy())
         scheduled_epochs = 0
-        for lambda_s, lambda_l2, epochs in zip(self.lambda_s, self.lambda_l2, self.epochs):
+        for lambda_g, lambda_s, lambda_l2, epochs in zip(self.lambda_g, self.lambda_s, self.lambda_l2, self.epochs):
             scheduled_epochs_end = scheduled_epochs + epochs
             if completed_epochs >= scheduled_epochs_end:
                 scheduled_epochs = scheduled_epochs_end
@@ -586,13 +595,12 @@ class supervisedFit:
                 continue
 
             epochs_to_train = epochs - max(0, completed_epochs - scheduled_epochs)
+            lossCalc.lambda_g.assign(lambda_g)
             lossCalc.lambda_s.assign(lambda_s)
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
-            ### Repeat the dataset for the number of epochs 
-            #train_dat_repeated = train_dat.repeat(epochs)
             t_loss_history_tmp = trainer.train(
-                epochs_to_train, train_dat, verbose=verbose, samples_per_epoch=4 * 10**5, batch_size=self.batch_size
+                epochs_to_train, train_dat, verbose=verbose, samples_per_epoch=6 * 10**5, batch_size=self.batch_size
                 )
             training_loss_history.extend(t_loss_history_tmp)
             checkpoint_step.assign_add(epochs_to_train)
@@ -611,7 +619,7 @@ class supervisedFit:
         #reshape the input data to respect batch_size preferences of the network
         correlator = tf.reshape(correlator, (1,len(correlator)))
         spectralFunction = model(correlator)
-        modelname = '{}_Nt{}_nbw{}_fixed.keras'.format(self.networkStructure, Nt, n_bw_max)
+        modelname = '{}_Nt{}_nbw{}_lg{}_ls{}_l2{}.keras'.format(self.networkStructure, Nt, n_bw_max, self.lambda_g[0], self.lambda_s[0], self.lambda_l2[0])
         model.save(modelname) # save the model
         return np.squeeze(spectralFunction), training_loss_history, modelname
     
@@ -670,6 +678,7 @@ class ParameterHandler:
             self
             ) -> networkParameters:
         return networkParameters(
+            lambda_g=self.params["lambda_g"],
             lambda_s=self.params["lambda_s"],
             lambda_l2=self.params["lambda_l2"],
             epochs=self.params["epochs"],
@@ -828,7 +837,6 @@ class FitRunner:
                 self.pred_res(corr, f"Fitting correlator sample {i+1}/{n_correlators}", results, pred_loss_histories, self.parameterHandler.get_params()["model_file"])
         else:
             model_name = self.run_fit(self.mean, "Fitting mean correlator", results, training_loss_histories)
-            ### pred_res currently doesnt include a loss function but this is fine for testing purposes
             for i, corr in enumerate(self.correlators):
                 self.pred_res(corr, f"Fitting correlator sample {i + 1}/{n_correlators}", results, pred_loss_histories, model_name)
         np.array(training_loss_histories)
@@ -953,6 +961,7 @@ paramsDefaultDict = {
     #choice of SupervisedNN, KadesFC, UnsupervisedNN, Gaussian, MEM
     "networkStructure": "SupervisedNN",
     #NetworkParams (Ai specrec)
+    "lambda_g": [1e-2],
     "lambda_s": [1e-5],
     "lambda_l2": [1e-8],
     "epochs": [100],

@@ -138,7 +138,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "Gaussian":
             black_list_vals = set((
-                "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
+                "lambda_g", "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "data_noise",
                 "saveLossHistory", "alpha_min", "alpha_max",
@@ -152,7 +152,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "MEM":
             black_list_vals = set((
-                "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
+                "lambda_g", "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "data_noise",
                 "saveLossHistory", "optimizer", "variance", "lengthscale", "precision", "lamb", "smearing"
@@ -165,7 +165,7 @@ class ParameterHandler:
                 json.dump(cleaned_dict, f, indent=4)
         if self.params["Method"] == "HLT":
             black_list_vals = set((
-                "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
+                "lambda_g", "lambda_s", "lambda_l2","saveWeightHistograms", "epochs","eval_model",
                 "learning_rate", "errorWeighting", "width", "model_file",
                 "batch_size", "data_noise",
                 "saveLossHistory", "optimizer", "variance", "lengthscale","alpha_min", "alpha_max",
@@ -254,6 +254,7 @@ paramsDefaultDict = {
     #choice of SupervisedNN, KadesFC, UnsupervisedNN, Gaussian, MEM
     "Method": "UnsupervisedNN",
     #NetworkParams (Ai specrec)
+    "lambda_g": [1e-2],
     "lambda_s": [1e-5],
     "lambda_l2": [1e-8],
     "epochs": [100],

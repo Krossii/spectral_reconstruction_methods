@@ -1,0 +1,66 @@
+Start 2026-09-16 11:17:15 | 59735 supervised_spec_rec | v28.clusternet | /work/home/candratschke/spectral_reconstruction_methods 
+
+****************************************
+Calling program for method:
+KadesFC
+Launching supervisedml.py from /work/home/candratschke/spectral_reconstruction_methods/supervised_ml/
+Python executable: /work/home/candratschke/.venv/bin/python
+Working directory exists: True
+Script exists: True
+Starting supervisedml.py
+2.21.0
+Finished imports
+****************************************
+Running fits with the following parameters:
+{'FiniteT_kernel': False,
+ 'Nt': 36,
+ 'batch_size': 128,
+ 'correlatorCols': '3:',
+ 'correlatorFile': '/work/data/candratschke/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt36_noise2.dat',
+ 'data_noise': 0.001,
+ 'epochs': [120],
+ 'errorCol': 2,
+ 'errorWeighting': True,
+ 'errormethod': 'jackknife',
+ 'eval_model': False,
+ 'extractedQuantity': 'Rho',
+ 'lambda_g': [0.1],
+ 'lambda_l2': [0.0001],
+ 'lambda_s': [1e-06],
+ 'learning_rate': [1e-05],
+ 'meanCol': 1,
+ 'model_file': 'KadesFC_Nt36_nbw3.keras',
+ 'networkStructure': 'KadesFC',
+ 'omega_max': 2,
+ 'omega_min': 0,
+ 'omega_points': 500,
+ 'outputDir': './outputs/',
+ 'outputFile': '',
+ 'saveLossHistory': True,
+ 'saveParams': True,
+ 'verbose': True,
+ 'xCol': 0}
+Created FitRunner
+========================================
+Fitting mean correlator
+========================================
+Loaded the dataset
+Initializing from scratch.
+Training for 120 epochs
+
+Start of epoch 0
+Batch 0/4687, Loss: 4842.76708984375
+Batch 50/4687, Loss: 5061.9365234375
+Batch 100/4687, Loss: 3231.771484375
+Batch 150/4687, Loss: 1610.2562255859375
+Batch 200/4687, Loss: 641.5494995117188
+Batch 250/4687, Loss: 402.0292663574219
+Batch 300/4687, Loss: 263.44647216796875
+Batch 350/4687, Loss: 255.5337371826172
+Batch 400/4687, Loss: 181.14732360839844
+Batch 450/4687, Loss: 158.3546142578125
+Batch 500/4687, Loss: 118.48370361328125
+Batch 550/4687, Loss: 93.22505950927734
+Batch 600/4687, Loss: 86.76731872558594
+Batch 650/4687, Loss: 69.72065734863281
+Batch 700/4687, Loss: 77.45785522460938
