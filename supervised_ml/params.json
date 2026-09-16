@@ -19,7 +19,7 @@
     "saveLossHistory": true,
     "batch_size": 128,
     "data_noise": 0.001,
-    "eval_model": true,
+    "eval_model": false,
     "model_file": "KadesFC_Nt36_nbw3.keras",
     "omega_min": 0,
     "omega_max": 2,
@@ -27,7 +27,7 @@
     "Nt": 36,
     "extractedQuantity": "Rho",
     "FiniteT_kernel": false,
-    "correlatorFile": "/work/data/candratschke/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt36_noise3.dat",
+    "correlatorFile": "/work/data/candratschke/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt36_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -37,7 +37,7 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": false,
+    "cluster": true,
     "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/",
     "networkStructure": "KadesFC"
 }

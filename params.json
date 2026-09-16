@@ -9,7 +9,7 @@
     "saveWeightHistograms": false,
     "batch_size": 128,
     "data_noise": 10e-4,
-    "eval_model": true,
+    "eval_model": false,
     "model_file": "KadesFC_Nt36_nbw3.keras",
     "optimizer": false,
     "variance": 0.3,
@@ -29,7 +29,7 @@
     "extractedQuantity": "Rho",
     "FiniteT_kernel": false,
     "multiFit": false,
-    "correlatorFile": "/home/Christian/Desktop/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt36_noise2.dat",
+    "correlatorFile": "/work/data/candratschke/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt36_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -40,6 +40,6 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": false,
+    "cluster": true,
     "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/"
 }
