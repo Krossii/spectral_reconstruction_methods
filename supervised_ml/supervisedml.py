@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 import argparse
+import hashlib
 import time
 import pprint
 
@@ -575,7 +576,32 @@ class supervisedFit:
             model=model,
             optimizer=optimizer,
         )
-        checkpoint_dir = os.path.join(os.getcwd(), "tf.ckpts_lg{}_ls{}_l2{}".format(self.lambda_g[0], self.lambda_s[0], self.lambda_l2[0]))
+        checkpoint_signature = {
+            "networkStructure": self.networkStructure,
+            "Nt": Nt,
+            "extractedQuantity": extractedQuantity,
+            "finiteT_kernel": finiteT_kernel,
+            "omega_shape": omega.shape,
+            "learning_rate": self.learning_rate,
+            "batch_size": self.batch_size,
+            "errorWeighting": self.errorWeighting,
+            "data_noise": data_noise,
+            "lambda_g": self.lambda_g,
+            "lambda_s": self.lambda_s,
+            "lambda_l2": self.lambda_l2,
+            "epochs": self.epochs,
+        }
+        signature_json = json.dumps(checkpoint_signature, sort_keys=True, default=list).encode()
+        run_hash = hashlib.sha256(signature_json + x.tobytes() + omega.tobytes()).hexdigest()[:12]
+        checkpoint_name = "tf.ckpts_{}_Nt{}_lg{}_ls{}_l2{}_{}".format(
+            self.networkStructure,
+            Nt,
+            self.lambda_g[0],
+            self.lambda_s[0],
+            self.lambda_l2[0],
+            run_hash,
+        )
+        checkpoint_dir = os.path.join(os.getcwd(), checkpoint_name)
         manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
 
         if manager.latest_checkpoint:
