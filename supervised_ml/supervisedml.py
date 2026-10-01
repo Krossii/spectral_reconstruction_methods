@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 import argparse
+import hashlib
 import time
 import pprint
 
@@ -499,7 +500,11 @@ class supervisedFit:
             omega: np.ndarray,
             data_noise: float = 1e-3,
             extractedQuantity: str = "RhoOverOmega", 
-            verbose: bool = True
+            verbose: bool = True,
+            samples_per_epoch: int = 6 * 10**5,
+            data_seed=None,
+            return_eval: bool = False,
+            save_test_plots: bool = True
             ) -> Tuple[np.ndarray, np.ndarray]:
 
         def eval_on_test_set(model, loss_calc, test_set):
@@ -509,12 +514,13 @@ class supervisedFit:
 
             rho_pred = model(corr)
             total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
-            for i in range(int(len(test_set)//100)):
-                plt.figure()
-                plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
-                plt.plot(fct[i], label="True")
-                plt.legend()
-                plt.savefig(f"test_set_comparison_{i}.png")
+            if save_test_plots:
+                for i in range(int(len(test_set)//100)):
+                    plt.figure()
+                    plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
+                    plt.plot(fct[i], label="True")
+                    plt.legend()
+                    plt.savefig(f"test_set_comparison_{i}.png")
             return total_loss_value
 
 
@@ -549,8 +555,7 @@ class supervisedFit:
             lambda_l2_func=lambda x: self.lambda_l2[0]
         )
 
-        seed = None
-        root_seed = np.random.SeedSequence(seed)
+        root_seed = np.random.SeedSequence(data_seed)
         train_seed, test_seed = root_seed.spawn(2)
         n_bw_max = 3
         gen = OnTheFlySpectralDataGenerator(x, omega, volume=VOL_O, n_bw_max=n_bw_max,
@@ -575,7 +580,34 @@ class supervisedFit:
             model=model,
             optimizer=optimizer,
         )
-        checkpoint_dir = os.path.join(os.getcwd(), "tf.ckpts_lg{}_ls{}_l2{}".format(self.lambda_g[0], self.lambda_s[0], self.lambda_l2[0]))
+        checkpoint_signature = {
+            "networkStructure": self.networkStructure,
+            "Nt": Nt,
+            "extractedQuantity": extractedQuantity,
+            "finiteT_kernel": finiteT_kernel,
+            "omega_shape": omega.shape,
+            "learning_rate": self.learning_rate,
+            "batch_size": self.batch_size,
+            "samples_per_epoch": samples_per_epoch,
+            "data_seed": data_seed,
+            "errorWeighting": self.errorWeighting,
+            "data_noise": data_noise,
+            "lambda_g": self.lambda_g,
+            "lambda_s": self.lambda_s,
+            "lambda_l2": self.lambda_l2,
+            "epochs": self.epochs,
+        }
+        signature_json = json.dumps(checkpoint_signature, sort_keys=True, default=list).encode()
+        run_hash = hashlib.sha256(signature_json + x.tobytes() + omega.tobytes()).hexdigest()[:12]
+        checkpoint_name = "tf.ckpts_{}_Nt{}_lg{}_ls{}_l2{}_{}".format(
+            self.networkStructure,
+            Nt,
+            self.lambda_g[0],
+            self.lambda_s[0],
+            self.lambda_l2[0],
+            run_hash,
+        )
+        checkpoint_dir = os.path.join(os.getcwd(), checkpoint_name)
         manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
 
         if manager.latest_checkpoint:
@@ -600,7 +632,7 @@ class supervisedFit:
             lossCalc.lambda_l2.assign(lambda_l2)
             trainer.optimizer = optimizer
             t_loss_history_tmp = trainer.train(
-                epochs_to_train, train_dat, verbose=verbose, samples_per_epoch=6 * 10**5, batch_size=self.batch_size
+                epochs_to_train, train_dat, verbose=verbose, samples_per_epoch=samples_per_epoch, batch_size=self.batch_size
                 )
             training_loss_history.extend(t_loss_history_tmp)
             checkpoint_step.assign_add(epochs_to_train)
@@ -621,6 +653,8 @@ class supervisedFit:
         spectralFunction = model(correlator)
         modelname = '{}_Nt{}_nbw{}_lg{}_ls{}_l2{}.keras'.format(self.networkStructure, Nt, n_bw_max, self.lambda_g[0], self.lambda_s[0], self.lambda_l2[0])
         model.save(modelname) # save the model
+        if return_eval:
+            return np.squeeze(spectralFunction), training_loss_history, modelname, float(test_loss.numpy())
         return np.squeeze(spectralFunction), training_loss_history, modelname
     
 class ParameterHandler:
