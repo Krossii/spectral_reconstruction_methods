@@ -1,0 +1,127 @@
+Start 2026-10-01 13:55:20 | 111064 supervised_spec_rec | v27.clusternet | /work/home/candratschke/spectral_reconstruction_methods 
+
+****************************************
+Calling program for method:
+KadesFC
+Launching supervisedml.py from /work/home/candratschke/spectral_reconstruction_methods/supervised_ml/
+Python executable: /work/home/candratschke/.venv/bin/python
+Working directory exists: True
+Script exists: True
+Starting supervisedml.py
+2.21.0
+Finished imports
+****************************************
+Running fits with the following parameters:
+{'FiniteT_kernel': False,
+ 'Nt': 64,
+ 'batch_size': 128,
+ 'correlatorCols': '3:',
+ 'correlatorFile': '/work/data/candratschke/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt64_noise2.dat',
+ 'data_noise': 0.001,
+ 'epochs': [120],
+ 'errorCol': 2,
+ 'errorWeighting': True,
+ 'errormethod': 'jackknife',
+ 'eval_model': False,
+ 'extractedQuantity': 'Rho',
+ 'lambda_g': [0.1],
+ 'lambda_l2': [0.0001],
+ 'lambda_s': [1e-06],
+ 'learning_rate': [1e-05],
+ 'meanCol': 1,
+ 'model_file': 'KadesFC_Nt64_nbw3.keras',
+ 'networkStructure': 'KadesFC',
+ 'omega_max': 2,
+ 'omega_min': 0,
+ 'omega_points': 500,
+ 'outputDir': './outputs/',
+ 'outputFile': '',
+ 'saveLossHistory': True,
+ 'saveParams': True,
+ 'verbose': True,
+ 'xCol': 0}
+Created FitRunner
+========================================
+Fitting mean correlator
+========================================
+Loaded the dataset
+Initializing from scratch.
+Training for 120 epochs
+
+Start of epoch 0
+Batch 0/4687, Loss: 2685.6845703125
+Batch 50/4687, Loss: 2370.643798828125
+Batch 100/4687, Loss: 1707.3226318359375
+Batch 150/4687, Loss: 921.1082763671875
+Batch 200/4687, Loss: 340.83917236328125
+Batch 250/4687, Loss: 190.29356384277344
+Batch 300/4687, Loss: 133.6215362548828
+Batch 350/4687, Loss: 121.14944458007812
+Batch 400/4687, Loss: 89.9225845336914
+Batch 450/4687, Loss: 79.9338150024414
+Batch 500/4687, Loss: 63.99989700317383
+Batch 550/4687, Loss: 60.26604461669922
+Batch 600/4687, Loss: 70.01618957519531
+Batch 650/4687, Loss: 48.88524627685547
+Batch 700/4687, Loss: 48.88291549682617
+Batch 750/4687, Loss: 33.4677734375
+Batch 800/4687, Loss: 31.421716690063477
+Batch 850/4687, Loss: 27.514793395996094
+Batch 900/4687, Loss: 28.41323471069336
+Batch 950/4687, Loss: 19.961349487304688
+Batch 1000/4687, Loss: 16.201953887939453
+Batch 1050/4687, Loss: 13.847915649414062
+Batch 1100/4687, Loss: 11.347683906555176
+Batch 1150/4687, Loss: 11.595927238464355
+Batch 1200/4687, Loss: 10.235989570617676
+Batch 1250/4687, Loss: 10.296714782714844
+Batch 1300/4687, Loss: 6.638484954833984
+Batch 1350/4687, Loss: 7.038836479187012
+Batch 1400/4687, Loss: 5.504654884338379
+Batch 1450/4687, Loss: 6.295690536499023
+Batch 1500/4687, Loss: 5.564714431762695
+Batch 1550/4687, Loss: 5.569726467132568
+Batch 1600/4687, Loss: 4.933581829071045
+Batch 1650/4687, Loss: 4.939934253692627
+Batch 1700/4687, Loss: 4.18813419342041
+Batch 1750/4687, Loss: 4.490561485290527
+Batch 1800/4687, Loss: 3.6755998134613037
+Batch 1850/4687, Loss: 4.34343147277832
+Batch 1900/4687, Loss: 3.6068670749664307
+Batch 1950/4687, Loss: 3.2880003452301025
+Batch 2000/4687, Loss: 3.5904598236083984
+Batch 2050/4687, Loss: 3.334449052810669
+Batch 2100/4687, Loss: 3.359903573989868
+Batch 2150/4687, Loss: 3.9793992042541504
+Batch 2200/4687, Loss: 3.7568740844726562
+Batch 2250/4687, Loss: 3.58487606048584
+Batch 2300/4687, Loss: 2.9871840476989746
+Batch 2350/4687, Loss: 3.3165061473846436
+Batch 2400/4687, Loss: 2.3969624042510986
+Batch 2450/4687, Loss: 2.948606014251709
+Batch 2500/4687, Loss: 3.137789726257324
+Batch 2550/4687, Loss: 3.3778154850006104
+Batch 2600/4687, Loss: 2.630908966064453
+Batch 2650/4687, Loss: 2.9072482585906982
+Batch 2700/4687, Loss: 2.9576258659362793
+Batch 2750/4687, Loss: 3.1152548789978027
+Batch 2800/4687, Loss: 2.4097397327423096
+Batch 2850/4687, Loss: 2.3217599391937256
+Batch 2900/4687, Loss: 3.0022711753845215
+Batch 2950/4687, Loss: 2.548656702041626
+Batch 3000/4687, Loss: 3.1604416370391846
+Batch 3050/4687, Loss: 3.0216431617736816
+Batch 3100/4687, Loss: 2.18282151222229
+Batch 3150/4687, Loss: 3.6239116191864014
+Batch 3200/4687, Loss: 2.247586965560913
+Batch 3250/4687, Loss: 2.276305675506592
+Batch 3300/4687, Loss: 2.7990851402282715
+Batch 3350/4687, Loss: 2.780137538909912
+Batch 3400/4687, Loss: 3.103459358215332
+Batch 3450/4687, Loss: 2.875976085662842
+Batch 3500/4687, Loss: 2.992354393005371
+Batch 3550/4687, Loss: 3.2881031036376953
+Batch 3600/4687, Loss: 2.7887024879455566
+Batch 3650/4687, Loss: 2.317647933959961
+Batch 3700/4687, Loss: 2.2716739177703857
+Batch 3750/4687, Loss: 2.693068742752075

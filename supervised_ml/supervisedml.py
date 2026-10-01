@@ -504,7 +504,8 @@ class supervisedFit:
             samples_per_epoch: int = 6 * 10**5,
             data_seed=None,
             return_eval: bool = False,
-            save_test_plots: bool = True
+            save_test_plots: bool = True,
+            force_reinit: bool = False
             ) -> Tuple[np.ndarray, np.ndarray]:
 
         def eval_on_test_set(model, loss_calc, test_set):
@@ -610,11 +611,33 @@ class supervisedFit:
         checkpoint_dir = os.path.join(os.getcwd(), checkpoint_name)
         manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=3)
 
-        if manager.latest_checkpoint:
+        # Path to signature file stored alongside checkpoints to enable
+        # automatic detection of incompatible configurations.
+        sig_file = os.path.join(checkpoint_dir, "checkpoint_signature.json")
+        restore_allowed = True
+        if os.path.exists(sig_file):
+            try:
+                with open(sig_file, 'r') as f:
+                    saved_sig = json.load(f)
+                diffs = []
+                for k in ("epochs","data_noise","errorWeighting","data_seed","samples_per_epoch","batch_size","learning_rate","finiteT_kernel","networkStructure", "extractedQuantity","Nt", "lambda_g", "lambda_s", "lambda_l2", "omega_shape"):
+                    if saved_sig.get(k) != checkpoint_signature.get(k):
+                        diffs.append((k, saved_sig.get(k), checkpoint_signature.get(k)))
+                if diffs:
+                    restore_allowed = False
+                    print(f"Checkpoint signature mismatch, skipping restore. Differences: {diffs}", flush=True)
+            except Exception as e:
+                print(f"Unable to read checkpoint signature: {e}; will attempt restore.", flush=True)
+
+        if manager.latest_checkpoint and not force_reinit and restore_allowed:
             ckpt.restore(manager.latest_checkpoint).assert_existing_objects_matched()
             print("Restored from {}".format(manager.latest_checkpoint), flush=True)
         else:
-            print("Initializing from scratch.", flush=True)
+            if manager.latest_checkpoint and (force_reinit or not restore_allowed):
+                reason = "force_reinit=True" if force_reinit else "signature mismatch"
+                print(f"Found checkpoint but {reason} — skipping restore.", flush=True)
+            else:
+                print("Initializing from scratch.", flush=True)
 
         completed_epochs = int(checkpoint_step.numpy())
         scheduled_epochs = 0
@@ -637,6 +660,20 @@ class supervisedFit:
             training_loss_history.extend(t_loss_history_tmp)
             checkpoint_step.assign_add(epochs_to_train)
             save_path = manager.save()
+            # Save the signature next to the checkpoints so future runs can
+            # detect whether the saved checkpoints match the current config.
+            try:
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                with open(sig_file, 'w') as f:
+                    def _conv(o):
+                        if hasattr(o, 'tolist'):
+                            return o.tolist()
+                        if isinstance(o, tuple):
+                            return list(o)
+                        return o
+                    json.dump({k: _conv(v) for k, v in checkpoint_signature.items()}, f, sort_keys=True)
+            except Exception as e:
+                print(f"Warning: failed to write checkpoint signature: {e}", flush=True)
             if verbose:
                 print("Saved checkpoint for step {}: {}".format(int(checkpoint_step), save_path), flush=True)
             scheduled_epochs = scheduled_epochs_end

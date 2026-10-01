@@ -1,7 +1,7 @@
 {
     "networkStructure": "KadesFC",
     "lambda_g": [
-        0.01
+        0.001
     ],
     "lambda_s": [
         1e-06
@@ -10,7 +10,7 @@
         0.0001
     ],
     "epochs": [
-        80
+        120
     ],
     "learning_rate": [
         1e-05
