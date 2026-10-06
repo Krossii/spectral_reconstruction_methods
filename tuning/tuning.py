@@ -9,10 +9,22 @@ from ray import tune
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUPERVISED_ML_DIR = os.path.join(REPO_ROOT, "supervised_ml")
 DEFAULT_PARAMS_PATH = os.path.join(SUPERVISED_ML_DIR, "params.json")
-if SUPERVISED_ML_DIR not in sys.path:
-    sys.path.insert(0, SUPERVISED_ML_DIR)
 
-from supervisedml import FitRunner, ParameterHandler, paramsDefaultDict
+for candidate in (REPO_ROOT, SUPERVISED_ML_DIR):
+    if os.path.isdir(candidate) and candidate not in sys.path:
+        sys.path.insert(0, candidate)
+
+try:
+    from supervisedml import FitRunner, ParameterHandler, paramsDefaultDict
+except ModuleNotFoundError as exc:
+    try:
+        from supervised_ml.supervisedml import FitRunner, ParameterHandler, paramsDefaultDict
+    except ModuleNotFoundError as package_exc:
+        raise ModuleNotFoundError(
+            "Could not import 'supervisedml'. "
+            "Ensure the repo root is on PYTHONPATH or run the script from the project root. "
+            f"Tried: {REPO_ROOT!r}, {SUPERVISED_ML_DIR!r}"
+        ) from package_exc
 
 
 def ray_tune_wrapper(config, params_path=DEFAULT_PARAMS_PATH):
@@ -71,11 +83,11 @@ def run_hyperparameter_search(
         gpu_per_trial=0,
         ):
     search_space = {
-        "networkStructure": tune.choice(["SupervisedNN", "KadesFC", "KadesConv"]),
+        "networkStructure": tune.choice(["KadesFC"]),
         "learning_rate": tune.loguniform(1e-5, 1e-2),
-        "batch_size": tune.choice([32, 64, 128]),
+        "batch_size": tune.choice([4, 8, 16]),
         "epochs": tune.choice([3, 5, 10]),
-        "samples_per_epoch": tune.choice([10000, 50000]),
+        "samples_per_epoch": tune.choice([1000, 5000]),
     }
     trainable = tune.with_parameters(
         ray_tune_wrapper,
@@ -87,7 +99,7 @@ def run_hyperparameter_search(
         num_samples=num_samples,
         metric="loss",
         mode="min",
-        resources_per_trial={"cpu": 2, "gpu": gpu_per_trial},
+        resources_per_trial={"cpu": 5, "gpu": gpu_per_trial},
     )
 
 

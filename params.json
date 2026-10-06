@@ -30,7 +30,7 @@
     "extractedQuantity": "Rho",
     "FiniteT_kernel": false,
     "multiFit": false,
-    "correlatorFile": "/work/data/candratschke/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt64_noise2.dat",
+    "correlatorFile": "/home/Christian/Desktop/mock-data-main/zero_T/uncorrelated_data/BW/mock_corr_BW_Nt64_noise2.dat",
     "xCol": 0,
     "meanCol": 1,
     "errorCol": 2,
@@ -41,6 +41,6 @@
     "verbose": true,
     "outputFile": "",
     "outputDir": "./outputs/",
-    "cluster": true,
+    "cluster": false,
     "clusterpath": "/work/home/candratschke/spectral_reconstruction_methods/"
 }

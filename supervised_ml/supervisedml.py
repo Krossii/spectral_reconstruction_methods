@@ -325,7 +325,7 @@ class networkTrainer:
        self.model = model
        self.optimizer = optimizer
        self.loss_calculator = loss_calculator
-       self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(12,4))
+       #self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(12,4))
 
     @tf.function()
     def train_step(
@@ -353,17 +353,17 @@ class networkTrainer:
         steps_per_epoch = samples_per_epoch // batch_size
 
         for step, (rho_true, corr, err) in enumerate(dat.take(steps_per_epoch)):
-            if step == 0:  # only plot on first batch of each epoch
-                rho_pred=self.model(corr)[0]
-                tau = np.arange(len(corr[:][0]))
-                self.ax1.cla()
-                self.ax1.plot(rho_true[0])
-                self.ax1.plot(rho_pred)
-                self.ax2.cla()
-                self.ax2.scatter(tau, corr[:][0], marker='x')
-                self.ax2.scatter(tau, Di(self.loss_calculator.kernel, rho_pred, self.loss_calculator.delomega), marker='o')
-                self.ax2.set_yscale('log')
-                self.fig.savefig("debug.png")
+            #if step == 0:  # only plot on first batch of each epoch
+            #    rho_pred=self.model(corr)[0]
+            #    tau = np.arange(len(corr[:][0]))
+            #    self.ax1.cla()
+            #    self.ax1.plot(rho_true[0])
+            #    self.ax1.plot(rho_pred)
+            #    self.ax2.cla()
+            #    self.ax2.scatter(tau, corr[:][0], marker='x')
+            #    self.ax2.scatter(tau, Di(self.loss_calculator.kernel, rho_pred, self.loss_calculator.delomega), marker='o')
+            #    self.ax2.set_yscale('log')
+            #    self.fig.savefig("debug.png")
             total_loss_value = self.train_step(corr=corr, err=err, rho_true = rho_true)
             train_losses.append(total_loss_value.numpy())
             if verbose and step % 50 == 0:
@@ -501,7 +501,7 @@ class supervisedFit:
             data_noise: float = 1e-3,
             extractedQuantity: str = "RhoOverOmega", 
             verbose: bool = True,
-            samples_per_epoch: int = 6 * 10**5,
+            samples_per_epoch: int = 4 * 10**5,
             data_seed=None,
             return_eval: bool = False,
             save_test_plots: bool = True,
@@ -515,13 +515,13 @@ class supervisedFit:
 
             rho_pred = model(corr)
             total_loss_value = loss_calc.total_loss(rho=rho_pred, y_true=corr, err=noise, rho_true=fct)
-            if save_test_plots:
-                for i in range(int(len(test_set)//100)):
-                    plt.figure()
-                    plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
-                    plt.plot(fct[i], label="True")
-                    plt.legend()
-                    plt.savefig(f"test_set_comparison_{i}.png")
+            #if save_test_plots:
+                #for i in range(int(len(test_set)//100)):
+                #    plt.figure()
+                #    plt.plot(rho_pred[i], label="Loss = {:.6f}".format(total_loss_value.numpy()))
+                #    plt.plot(fct[i], label="True")
+                #    plt.legend()
+                #    plt.savefig(f"test_set_comparison_{i}.png")
             return total_loss_value
 
 
