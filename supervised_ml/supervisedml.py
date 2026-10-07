@@ -316,6 +316,8 @@ class LossCalculator:
         return total_loss_value #[main_loss, rho_loss, self.lambda_s*smooth_loss, self.lambda_l2*l2_loss] 
 
 class networkTrainer:
+    debug_plot_saved = False
+
     def __init__(
             self, 
             model: tf.keras.Model, 
@@ -353,7 +355,7 @@ class networkTrainer:
         steps_per_epoch = samples_per_epoch // batch_size
 
         for step, (rho_true, corr, err) in enumerate(dat.take(steps_per_epoch)):
-            if step == 0:  # only plot on first batch of each epoch
+            if step == 0 and not self.debug_plot_saved:
                 rho_pred=self.model(corr)[0]
                 tau = np.arange(len(corr[:][0]))
                 self.ax1.cla()
@@ -364,10 +366,11 @@ class networkTrainer:
                 self.ax2.scatter(tau, Di(self.loss_calculator.kernel, rho_pred, self.loss_calculator.delomega), marker='o')
                 self.ax2.set_yscale('log')
                 self.fig.savefig("debug.png")
+                self.debug_plot_saved = True
             total_loss_value = self.train_step(corr=corr, err=err, rho_true = rho_true)
-            train_losses.append(total_loss_value.numpy())
+            train_losses.append(total_loss_value)
             if verbose and step % 50 == 0:
-                print(f'Batch {step}/{steps_per_epoch}, Loss: {total_loss_value}', flush=True)
+                print(f'Batch {step}/{steps_per_epoch}', flush=True)
         return train_losses
 
     def train(

@@ -162,27 +162,65 @@ class OnTheFlySpectralDataGenerator:
         return np.clip(masses, lo, hi)  # fallback if rejection sampling struggles
 
     def _sample_one(self):
-        n_bw = int(self.rng.integers(1, self.n_bw_max + 1))
-        A = self.rng.uniform(*self.volume.A, size=n_bw)
-        Gamma = self.rng.uniform(*self.volume.Gamma, size=n_bw)
-        M = self._sample_masses(n_bw)
+        rho, corr, noise = self._sample_batch(1)
+        return rho[0], corr[0], noise[0]
 
-        rho = np.zeros_like(self.omega)
-        for a, m, g in zip(A, M, Gamma):
-            rho += breit_wigner(self.omega, a, m, g)
+    def _sample_batch(self, batch_size: int):
+        n_bw = self.rng.integers(1, self.n_bw_max + 1, size=batch_size)
+        amplitudes = self.rng.uniform(*self.volume.A, size=(batch_size, self.n_bw_max))
+        widths = self.rng.uniform(*self.volume.Gamma, size=(batch_size, self.n_bw_max))
 
-        G = Di(self.kernel, rho, self.delta_omega)                                    # [Eq. 2]
-        G = np.squeeze(G.numpy(), axis=0)
-        sigma = np.full_like(G, self.noise_width)
-        eps = self.rng.normal(0.0, self.noise_width, size=G.shape)
-        G_noisy = G + eps                                        # [Eq. 8]
+        mass_min, mass_max = self.volume.M
+        delta_min, delta_max = self.volume.delta_M
 
-        return rho.astype(np.float32), G_noisy.astype(np.float32), sigma.astype(np.float32)
+        def draw_masses(sample_count: int) -> np.ndarray:
+            masses = np.empty((sample_count, self.n_bw_max))
+            masses[:, 0] = self.rng.uniform(mass_min, mass_max, size=sample_count)
+            for peak in range(1, self.n_bw_max):
+                separation = self.rng.uniform(delta_min, delta_max, size=sample_count)
+                masses[:, peak] = masses[:, peak - 1] + separation
+            return masses
+
+        masses = draw_masses(batch_size)
+        active_peaks = np.arange(self.n_bw_max)[None, :] < n_bw[:, None]
+        valid = np.all(
+            ~active_peaks | ((masses >= mass_min) & (masses <= mass_max)), axis=1
+        )
+        for _ in range(100):
+            invalid = np.flatnonzero(~valid)
+            if len(invalid) == 0:
+                break
+            masses[invalid] = draw_masses(len(invalid))
+            valid[invalid] = np.all(
+                ~active_peaks[invalid]
+                | ((masses[invalid] >= mass_min) & (masses[invalid] <= mass_max)),
+                axis=1,
+            )
+        masses = np.clip(masses, mass_min, mass_max)
+
+        omega = self.omega[None, None, :]
+        rho_components = breit_wigner(
+            omega,
+            amplitudes[:, :, None],
+            masses[:, :, None],
+            widths[:, :, None],
+        )
+        rho = np.sum(rho_components * active_peaks[:, :, None], axis=1)
+        corr = rho @ self.kernel.T * self.delta_omega
+        noise = np.full_like(corr, self.noise_width)
+        corr += self.rng.normal(0.0, self.noise_width, size=corr.shape)
+
+        return rho.astype(np.float32), corr.astype(np.float32), noise.astype(np.float32)
 
     def generator(self):
-        """Infinite generator of single (rho, G_noisy, sigma) samples."""
+        """Infinite generator of individual (rho, G_noisy, sigma) samples."""
         while True:
             yield self._sample_one()
+
+    def _batch_generator(self, batch_size: int):
+        """Infinite generator of freshly sampled batches."""
+        while True:
+            yield self._sample_batch(batch_size)
 
     def as_tf_dataset(self, batch_size: int) -> tf.data.Dataset:
         """
@@ -192,12 +230,14 @@ class OnTheFlySpectralDataGenerator:
         integration below).
         """
         output_signature = (
-            tf.TensorSpec(shape=(len(self.omega),), dtype=tf.float32),  # rho (X)
-            tf.TensorSpec(shape=(len(self.tau),), dtype=tf.float32),      # G_noisy (y)
-            tf.TensorSpec(shape=(len(self.tau),), dtype=tf.float32),      # sigma (z)
+            tf.TensorSpec(shape=(batch_size, len(self.omega)), dtype=tf.float32),  # rho (X)
+            tf.TensorSpec(shape=(batch_size, len(self.tau)), dtype=tf.float32),    # G_noisy (y)
+            tf.TensorSpec(shape=(batch_size, len(self.tau)), dtype=tf.float32),    # sigma (z)
         )
-        ds = tf.data.Dataset.from_generator(self.generator, output_signature=output_signature)
-        return ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        ds = tf.data.Dataset.from_generator(
+            lambda: self._batch_generator(batch_size), output_signature=output_signature
+        )
+        return ds.prefetch(tf.data.AUTOTUNE)
 
     def sample_fixed_set(self, n_samples: int, seed: int = 0) -> List[Dict[str, np.ndarray]]:
         """
